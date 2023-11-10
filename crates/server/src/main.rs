@@ -2,7 +2,7 @@
 #![no_main]
 
 fn main(_args: &[&ft::CharStar], _env: &[&ft::CharStar]) -> u8 {
-    ft::printf!("Hello, world!");
+    ft::printf!("Hello, world!\n");
     0
 }
 
