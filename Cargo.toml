@@ -1,0 +1,15 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+authors = [
+    "Youva Gaudé <ygaude@student.42.fr>",
+    "Tiago Lernould <tlernoul@student.42.fr>",
+    "Nils Mathieu <nmathieu@student.42.fr>",
+]
+readme = "README.md"
+edition = "2021"
+repository = "https://github.com/Eviber/zappy"
+publish = false

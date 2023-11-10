@@ -1,0 +1,16 @@
+[package]
+name = "zappy_server"
+description = "The Zappy server."
+
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+readme.workspace = true
+
+[dependencies]
+ft = { git = "https://github.com/nils-mathieu/libft-rs", features = [
+    "global-allocator",
+    "panic-handler",
+] }
