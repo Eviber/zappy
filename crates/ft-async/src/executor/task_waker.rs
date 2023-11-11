@@ -32,7 +32,7 @@ impl EventSet {
 
     /// Sets the file descriptors that we are waiting for, and returns the
     /// highest file descriptor.
-    fn setup_fdset(&mut self) -> ft::Fd {
+    pub fn setup_fdset(&mut self) -> ft::Fd {
         let mut max = ft::Fd::from_raw(-1);
 
         self.set.clear();
@@ -48,7 +48,7 @@ impl EventSet {
     }
 
     /// Wakes up all the tasks, removing them from the list of waiting tasks.
-    fn wake_up_tasks(&mut self) {
+    pub fn wake_up_tasks(&mut self) {
         let mut i = 0;
         while let Some(task) = self.list.get(i) {
             if self.set.contains(task.fd) {
@@ -62,20 +62,20 @@ impl EventSet {
     /// Returns a mutable reference to the [`ft::fd::FdSet`] used to perform
     /// [`ft::select`].
     #[inline]
-    fn set_mut(&mut self) -> &mut ft::fd::FdSet {
+    pub fn fdset_mut(&mut self) -> &mut ft::fd::FdSet {
         &mut self.set
     }
 
     /// Returns whether there are currently any tasks waiting.
     #[inline]
-    fn anybody_waiting(&self) -> bool {
+    pub fn anybody_waiting(&self) -> bool {
         !self.list.is_empty()
     }
 
     /// Registers a task to be woken up when the provided file descriptor becomes
     /// non-blocking.
     #[inline]
-    fn register(&mut self, fd: ft::Fd, waker: Waker) {
+    pub fn register(&mut self, fd: ft::Fd, waker: Waker) {
         self.list.push(BlockedByIo { waker, fd });
     }
 
@@ -115,7 +115,7 @@ impl Select {
     /// Returns whether there are currently any tasks waiting for I/O.
     #[inline]
     pub fn anybody_waiting(&self) -> bool {
-        !self.read.anybody_waiting() && !self.write.anybody_waiting()
+        self.read.anybody_waiting() || self.write.anybody_waiting()
     }
 
     /// Performs the [`ft::select`] system call, waking up tasks that are
