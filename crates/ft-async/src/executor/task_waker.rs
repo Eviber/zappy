@@ -192,7 +192,7 @@ impl Sleepers {
     /// Registers a task to be woken up when the provided alarm expires.
     #[inline]
     pub fn register(&mut self, alarm: ft::Instant, waker: Waker) {
-        self.list.push(BlockedByTime { alarm, waker });
+        self.list.push(BlockedByTime { waker, alarm });
     }
 
     /// Returns the earliest alarm in the list, if any.
