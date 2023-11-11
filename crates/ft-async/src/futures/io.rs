@@ -11,6 +11,7 @@ pub fn write_all(fd: ft::Fd, buf: &[u8]) -> WriteAll {
 }
 
 /// See [`write_all`].
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct WriteAll<'a> {
     fd: ft::Fd,
     buf: &'a [u8],
