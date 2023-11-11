@@ -241,9 +241,7 @@ impl TaskWaker {
             None => None,
         };
 
-        ft::printf!("checking if anybody is waiting\n");
         if self.select.anybody_waiting() || timeout.is_some() {
-            ft::printf!("about to call select\n");
             self.select.select(timeout)?;
         }
 

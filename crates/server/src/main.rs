@@ -48,7 +48,6 @@ async fn run_server(port: u16) {
 
 /// Handles a connection from a client.
 async fn handle_connection(conn: Connection) {
-    ft::printf!("sending data\n");
     if let Err(err) = conn.send(b"Hello!\n").await {
         ft::printf!(
             "\x1B[1;31merror\x1B[0m: failed to send a message to `\x1B[33m{addr}\x1B[0m`: {err}\n",

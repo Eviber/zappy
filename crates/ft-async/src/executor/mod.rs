@@ -86,7 +86,6 @@ impl<'a> Executor<'a> {
                 return;
             };
 
-            ft::printf!("running task {id}\n");
             let waker = waker_from_task_id(id);
             let mut context = Context::from_waker(&waker);
             match task.as_mut().poll(&mut context) {
