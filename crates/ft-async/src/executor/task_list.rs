@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use core::cmp::Ordering::*;
+use core::cmp::Ordering::{Equal, Greater, Less};
 
 use super::Task;
 

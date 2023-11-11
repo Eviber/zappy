@@ -8,8 +8,6 @@ use core::fmt::Arguments;
 use core::sync::atomic::AtomicU8;
 use core::sync::atomic::Ordering::Relaxed;
 
-use Verbosity::*;
-
 /// A logging verbosity level.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Verbosity {
@@ -98,11 +96,11 @@ fn log_unchecked(message: &Message) {
     let Message { message, verbosity } = message;
 
     let (prefix, suffix) = match verbosity {
-        Trace => ("   \x1B[1;2mtrace\x1B[0m\x1B[2m  ", "\x1B[0m"),
-        Info => ("    \x1B[1;92minfo\x1B[0m  ", ""),
-        Debug => ("   \x1B[1;95mdebug\x1B[0m  ", ""),
-        Warning => (" \x1B[1;93mwarning\x1B[0m\x1B[93m  ", "\x1B[0m"),
-        Error => ("   \x1B[1;31merror\x1B[0m\x1B[91m  ", "\x1B[0m"),
+        Verbosity::Trace => ("   \x1B[1;2mtrace\x1B[0m\x1B[2m  ", "\x1B[0m"),
+        Verbosity::Info => ("    \x1B[1;92minfo\x1B[0m  ", ""),
+        Verbosity::Debug => ("   \x1B[1;95mdebug\x1B[0m  ", ""),
+        Verbosity::Warning => (" \x1B[1;93mwarning\x1B[0m\x1B[93m  ", "\x1B[0m"),
+        Verbosity::Error => ("   \x1B[1;31merror\x1B[0m\x1B[91m  ", "\x1B[0m"),
     };
 
     ft::printf!("{prefix}{message}{suffix}\n");
