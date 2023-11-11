@@ -11,7 +11,7 @@ checksum = "327762f6e5a765692301e5bb513e0d9fef63be86bbc14528052b1cd3e6f03e07"
 [[package]]
 name = "ft"
 version = "0.1.0"
-source = "git+https://github.com/nils-mathieu/libft-rs#303fcc8427165676efe1ddb6bcebb4661e3dd75c"
+source = "git+https://github.com/nils-mathieu/libft-rs#f5c909466dbd46163e2bb92431d0bbd551aae234"
 dependencies = [
  "bitflags",
  "libc",

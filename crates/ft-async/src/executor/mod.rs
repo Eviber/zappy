@@ -81,7 +81,12 @@ impl<'a> Executor<'a> {
 
     /// Runs all the tasks  that are currently ready.
     fn run_all_ready_tasks(&self) {
-        while let Some((id, mut task)) = self.tasks.lock().take_ready() {
+        loop {
+            let Some((id, mut task)) = self.tasks.lock().take_ready() else {
+                return;
+            };
+
+            ft::printf!("running task {id}\n");
             let waker = waker_from_task_id(id);
             let mut context = Context::from_waker(&waker);
             match task.as_mut().poll(&mut context) {

@@ -86,6 +86,12 @@ impl Select {
         self.write.push(BlockedByIo { fd, waker });
     }
 
+    /// Returns whether there are currently any tasks waiting for I/O.
+    #[inline]
+    pub fn anybody_waiting(&self) -> bool {
+        !self.read.is_empty() || !self.write.is_empty()
+    }
+
     /// Performs the [`ft::select`] system call, waking up tasks that are
     /// waiting for I/O.
     ///
@@ -234,7 +240,13 @@ impl TaskWaker {
             }
             None => None,
         };
-        self.select.select(timeout)?;
+
+        ft::printf!("checking if anybody is waiting\n");
+        if self.select.anybody_waiting() || timeout.is_some() {
+            ft::printf!("about to call select\n");
+            self.select.select(timeout)?;
+        }
+
         self.sleepers.wake_up_tasks()?;
         Ok(())
     }
