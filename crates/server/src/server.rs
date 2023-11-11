@@ -10,9 +10,9 @@ pub struct Connection {
 
 impl Drop for Connection {
     fn drop(&mut self) {
-        ft::printf!(
-            "\x1B[1;32minfo\x1B[0m: closed the connection with `\x1B[33m{addr}\x1B[0m`\n",
-            addr = self.address,
+        ft_log::info!(
+            "closed the connection with `\x1B[33m{}\x1B[0m`",
+            self.address,
         );
     }
 }
