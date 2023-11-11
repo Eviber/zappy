@@ -126,8 +126,8 @@ impl Select {
 
         ft::fd::select(
             maxfd,
-            Some(self.read.set_mut()),
-            Some(self.write.set_mut()),
+            Some(self.read.fdset_mut()),
+            Some(self.write.fdset_mut()),
             None,
             timeout,
         )?;
