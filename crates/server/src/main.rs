@@ -28,7 +28,7 @@ fn main(args: &[&ft::CharStar], _env: &[&ft::CharStar]) -> u8 {
         }
     };
 
-    ft_async::EXECUTOR.spawn(run_server(1234));
+    ft_async::EXECUTOR.spawn(run_server(args.port));
 
     let err = ft_async::EXECUTOR.run();
     ft_log::error!("failed to run the executor: {err}");
