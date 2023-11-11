@@ -9,12 +9,25 @@ extern crate alloc;
 
 use client::Client;
 
+use crate::args::Args;
+
 use self::server::Server;
 
+mod args;
 mod client;
 mod server;
 
-fn main(_args: &[&ft::CharStar], _env: &[&ft::CharStar]) -> u8 {
+fn main(args: &[&ft::CharStar], _env: &[&ft::CharStar]) -> u8 {
+    let args = match Args::parse_args(args) {
+        Ok(ok) => ok,
+        Err(err) => {
+            ft::eprintf!(
+                core::concat!("\x1B[1;31merror:\x1B[0m {err}\n\n"),
+                include_str!("usage.txt"),
+            );
+        }
+    };
+
     ft_async::EXECUTOR.spawn(run_server(1234));
 
     let err = ft_async::EXECUTOR.run();
