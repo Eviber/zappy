@@ -29,6 +29,7 @@ pub fn ready_for_writing(fd: ft::Fd) -> ReadyForWriting {
 }
 
 /// See [`ready_for_reading`].
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct ReadyForReading {
     fd: ft::Fd,
     waker_registered: bool,
@@ -49,6 +50,7 @@ impl Future for ReadyForReading {
 }
 
 /// See [`ready_for_writing`].
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct ReadyForWriting {
     fd: ft::Fd,
     waker_registered: bool,
