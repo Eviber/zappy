@@ -28,7 +28,7 @@ pub fn ready_for_writing(fd: ft::Fd) -> ReadyForWriting {
     }
 }
 
-/// Waits until a file descriptor is ready to be read.
+/// See [`ready_for_reading`].
 pub struct ReadyForReading {
     fd: ft::Fd,
     waker_registered: bool,
@@ -48,7 +48,7 @@ impl Future for ReadyForReading {
     }
 }
 
-/// Waits until a file descriptor is ready to be written.
+/// See [`ready_for_writing`].
 pub struct ReadyForWriting {
     fd: ft::Fd,
     waker_registered: bool,

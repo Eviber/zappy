@@ -3,7 +3,7 @@
 /// A connection to a TCP client.
 pub struct Connection {
     /// The file descriptor of the connection.
-    _file: ft::File,
+    file: ft::File,
     /// The address of the client.
     address: ft::net::SocketAddr,
 }
@@ -13,6 +13,12 @@ impl Connection {
     #[inline]
     pub fn address(&self) -> ft::net::SocketAddr {
         self.address
+    }
+
+    /// Sends the provided buffer to the client.
+    pub async fn send(&self, buf: &[u8]) -> ft::Result<()> {
+        ft_async::futures::ready_for_writing(*self.file).await;
+        ft_async::futures::write_all(*self.file, buf).await
     }
 }
 
@@ -33,10 +39,7 @@ impl Server {
     pub async fn accept(&self) -> ft::Result<Connection> {
         ft_async::futures::ready_for_reading(*self.0).await;
         match self.0.accept() {
-            Ok((file, address)) => Ok(Connection {
-                _file: file,
-                address,
-            }),
+            Ok((file, address)) => Ok(Connection { file, address }),
             Err(e) => Err(e),
         }
     }
