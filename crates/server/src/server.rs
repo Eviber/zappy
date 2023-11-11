@@ -8,6 +8,15 @@ pub struct Connection {
     address: ft::net::SocketAddr,
 }
 
+impl Drop for Connection {
+    fn drop(&mut self) {
+        ft::printf!(
+            "\x1B[1;32minfo\x1B[0m: closed the connection with `\x1B[33m{addr}\x1B[0m`\n",
+            addr = self.address,
+        );
+    }
+}
+
 impl Connection {
     /// Returns the file descriptor of the connection.
     #[inline]
