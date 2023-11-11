@@ -1,0 +1,13 @@
+[package]
+name = "ft-log"
+version = "0.1.0"
+description = "A simple logging system."
+
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+readme.workspace = true
+
+[dependencies]
+ft = { git = "https://github.com/nils-mathieu/libft-rs" }
