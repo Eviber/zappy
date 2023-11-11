@@ -179,6 +179,7 @@ impl Sleepers {
     }
 
     /// Wakes up tasks that are ready to be polled.
+    #[allow(clippy::unwrap_used)]
     pub fn wake_up_tasks(&mut self) -> ft::Result<()> {
         let now = ft::Clock::MONOTONIC.get()?;
         while let Some(sleeper) = self.list.peek() {
