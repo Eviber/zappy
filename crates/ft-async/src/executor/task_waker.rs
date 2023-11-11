@@ -12,44 +12,32 @@ struct BlockedByIo {
     fd: ft::Fd,
 }
 
-/// Contains the state required to perform a [`ft::select`] system call.
-struct Select {
-    /// The list of tasks that are waiting for reads to become non-blocking.
-    read: Vec<BlockedByIo>,
-    /// The list of tasks that are waiting for writes to become non-blocking.
-    write: Vec<BlockedByIo>,
-
-    //
-    // Those two fields are only used to avoid allocating a whole set on the
-    // stack every time we call `select`.
-    //
-    /// The list of file descriptors that we are waiting for reads to become
-    /// non-blocking.
-    read_fdset: ft::fd::FdSet,
-    /// The list of file descriptors that we are waiting for writes to become
-    /// non-blocking.
-    write_fdset: ft::fd::FdSet,
+/// A list of tasks that are blocked because they are waiting for an event.
+struct EventSet {
+    /// The list of tasks that are waiting to become non-blocking.
+    list: Vec<BlockedByIo>,
+    /// An [`ft::fd::FdSet`] to avoid allocating a new one every time we call
+    /// [`ft::select`].
+    set: ft::fd::FdSet,
 }
 
-impl Select {
-    /// Creates a new [`Select`] instance.
-    pub const fn new() -> Self {
+impl EventSet {
+    /// Creates a new [`EventSet`] instance.
+    const fn new() -> Self {
         Self {
-            read: Vec::new(),
-            write: Vec::new(),
-            read_fdset: ft::fd::FdSet::new(),
-            write_fdset: ft::fd::FdSet::new(),
+            list: Vec::new(),
+            set: ft::fd::FdSet::new(),
         }
     }
 
     /// Sets the file descriptors that we are waiting for, and returns the
     /// highest file descriptor.
-    fn setup_fdset(list: &[BlockedByIo], set: &mut ft::fd::FdSet) -> ft::Fd {
+    fn setup_fdset(&mut self) -> ft::Fd {
         let mut max = ft::Fd::from_raw(-1);
 
-        set.clear();
-        for task in list {
-            set.insert(task.fd);
+        self.set.clear();
+        for task in &self.list {
+            self.set.insert(task.fd);
 
             if task.fd > max {
                 max = task.fd;
@@ -59,16 +47,54 @@ impl Select {
         max
     }
 
-    /// Wakes up all the tasks that are part of the provided set, removing them from
-    /// the list of waiting tasks.
-    fn wake_up_tasks_for(list: &mut Vec<BlockedByIo>, set: &ft::fd::FdSet) {
+    /// Wakes up all the tasks, removing them from the list of waiting tasks.
+    fn wake_up_tasks(&mut self) {
         let mut i = 0;
-        while let Some(task) = list.get(i) {
-            if set.contains(task.fd) {
-                list.swap_remove(i).waker.wake();
+        while let Some(task) = self.list.get(i) {
+            if self.set.contains(task.fd) {
+                self.list.swap_remove(i).waker.wake();
             } else {
                 i += 1;
             }
+        }
+    }
+
+    /// Returns a mutable reference to the [`ft::fd::FdSet`] used to perform
+    /// [`ft::select`].
+    #[inline]
+    fn set_mut(&mut self) -> &mut ft::fd::FdSet {
+        &mut self.set
+    }
+
+    /// Returns whether there are currently any tasks waiting.
+    #[inline]
+    fn anybody_waiting(&self) -> bool {
+        !self.list.is_empty()
+    }
+
+    /// Registers a task to be woken up when the provided file descriptor becomes
+    /// non-blocking.
+    #[inline]
+    fn register(&mut self, fd: ft::Fd, waker: Waker) {
+        self.list.push(BlockedByIo { waker, fd });
+    }
+
+}
+
+/// Contains the state required to perform a [`ft::select`] system call.
+struct Select {
+    /// The list of tasks that are waiting for reads to become non-blocking.
+    read: EventSet,
+    /// The list of tasks that are waiting for writes to become non-blocking.
+    write: EventSet,
+}
+
+impl Select {
+    /// Creates a new [`Select`] instance.
+    pub const fn new() -> Self {
+        Self {
+            read: EventSet::new(),
+            write: EventSet::new(),
         }
     }
 
@@ -76,20 +102,20 @@ impl Select {
     /// non-blocking for reads.
     #[inline]
     pub fn register_read(&mut self, fd: ft::Fd, waker: Waker) {
-        self.read.push(BlockedByIo { fd, waker });
+        self.read.register(fd, waker);
     }
 
     /// Registers a task to be woken up when the provided file descriptor becomes
     /// non-blocking for writes.
     #[inline]
     pub fn register_write(&mut self, fd: ft::Fd, waker: Waker) {
-        self.write.push(BlockedByIo { fd, waker });
+        self.write.register(fd, waker);
     }
 
     /// Returns whether there are currently any tasks waiting for I/O.
     #[inline]
     pub fn anybody_waiting(&self) -> bool {
-        !self.read.is_empty() || !self.write.is_empty()
+        !self.read.anybody_waiting() && !self.write.anybody_waiting()
     }
 
     /// Performs the [`ft::select`] system call, waking up tasks that are
@@ -97,20 +123,18 @@ impl Select {
     ///
     /// Note: this function will block if no tasks are waiting for I/O.
     pub fn select(&mut self, timeout: Option<Duration>) -> ft::Result<()> {
-        let mut maxfd = ft::Fd::from_raw(-1);
-        maxfd = maxfd.max(Self::setup_fdset(&self.read, &mut self.read_fdset));
-        maxfd = maxfd.max(Self::setup_fdset(&self.write, &mut self.write_fdset));
+        let maxfd = self.read.setup_fdset().max(self.write.setup_fdset());
 
         ft::fd::select(
             maxfd,
-            Some(&mut self.read_fdset),
-            Some(&mut self.write_fdset),
+            Some(self.read.set_mut()),
+            Some(self.write.set_mut()),
             None,
             timeout,
         )?;
 
-        Self::wake_up_tasks_for(&mut self.read, &self.read_fdset);
-        Self::wake_up_tasks_for(&mut self.write, &self.write_fdset);
+        self.read.wake_up_tasks();
+        self.write.wake_up_tasks();
 
         Ok(())
     }
