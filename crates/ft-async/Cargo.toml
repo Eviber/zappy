@@ -10,4 +10,6 @@ publish.workspace = true
 readme.workspace = true
 
 [dependencies]
-ft = { git = "https://github.com/nils-mathieu/libft-rs" }
+ft = { git = "https://github.com/nils-mathieu/libft-rs", features = [
+    "collections",
+] }
