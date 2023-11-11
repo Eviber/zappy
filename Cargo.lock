@@ -25,6 +25,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ft-log"
+version = "0.1.0"
+dependencies = [
+ "ft",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.150"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -43,4 +50,5 @@ version = "0.1.0"
 dependencies = [
  "ft",
  "ft-async",
+ "ft-log",
 ]
