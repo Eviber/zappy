@@ -14,7 +14,7 @@ pub enum Verbosity {
     /// The message is simply tracing some event in the program. This is generally not
     /// useful for the end user.
     Trace = 1,
-    /// The message provides some insight about the current stae of the program. This is
+    /// The message provides some insight about the current state of the program. This is
     /// generally useful to display, but not necessary.
     Info = 2,
     /// A debug message.
