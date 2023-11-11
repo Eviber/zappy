@@ -78,7 +78,6 @@ impl EventSet {
     pub fn register(&mut self, fd: ft::Fd, waker: Waker) {
         self.list.push(BlockedByIo { waker, fd });
     }
-
 }
 
 /// Contains the state required to perform a [`ft::select`] system call.
