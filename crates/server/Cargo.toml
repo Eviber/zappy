@@ -13,6 +13,7 @@ readme.workspace = true
 ft = { git = "https://github.com/nils-mathieu/libft-rs", features = [
     "global-allocator",
     "panic-handler",
+    "collections",
 ] }
 ft-async = { path = "../ft-async" }
 ft-log = { path = "../ft-log" }
