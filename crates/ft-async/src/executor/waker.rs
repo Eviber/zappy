@@ -1,6 +1,6 @@
 use core::task::{RawWaker, RawWakerVTable, Waker};
 
-use crate::task_list::TaskId;
+use super::task_list::TaskId;
 
 /// Creates a [`RawWaker`] for the provided [`TaskId`].
 pub fn raw_waker_from_task_id(task: TaskId) -> RawWaker {
@@ -19,11 +19,11 @@ fn clone(this: *const ()) -> RawWaker {
 }
 
 fn wake(this: *const ()) {
-    crate::EXECUTOR.wake_up(this as TaskId);
+    super::EXECUTOR.wake_up(this as TaskId);
 }
 
 fn wake_by_ref(this: *const ()) {
-    crate::EXECUTOR.wake_up(this as TaskId);
+    super::EXECUTOR.wake_up(this as TaskId);
 }
 
 fn drop(_this: *const ()) {}

@@ -42,4 +42,5 @@ name = "zappy_server"
 version = "0.1.0"
 dependencies = [
  "ft",
+ "ft-async",
 ]

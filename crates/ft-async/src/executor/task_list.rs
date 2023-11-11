@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use core::cmp::Ordering::*;
 
-use crate::Task;
+use super::Task;
 
 /// The ID of a task, exists within a [`TaskList`].
 pub type TaskId = usize;
