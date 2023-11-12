@@ -52,6 +52,7 @@ impl VerbosityFilter {
     }
 
     /// Returns whether the filter contains the provided verbosity level.
+    #[inline]
     pub fn contains(&self, level: Verbosity) -> bool {
         self.0.load(Relaxed) & (level as u8) != 0
     }

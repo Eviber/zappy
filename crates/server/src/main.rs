@@ -13,6 +13,7 @@ use self::server::Server;
 
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering::Relaxed;
+use core::time::Duration;
 
 mod args;
 mod client;
@@ -59,6 +60,7 @@ fn main(args: &[&ft::CharStar], _env: &[&ft::CharStar]) -> u8 {
 
     ft_log::trace!("spawning tasks...");
     ft_async::EXECUTOR.spawn(run_server(args.port));
+    ft_async::EXECUTOR.spawn(run_ticks(args.tick_frequency));
 
     ft_log::trace!("running the executor...");
     loop {
@@ -114,7 +116,7 @@ async fn run_server(port: u16) {
             }
         };
 
-        ft_log::info!("accepted a connection from `\x1B[33m{address}\x1B[0m`");
+        ft_log::info!("accepted a connection from `{address}`");
         ft_async::EXECUTOR.spawn(handle_connection(conn, address));
     }
 }
@@ -122,7 +124,7 @@ async fn run_server(port: u16) {
 /// Handles a connection from a client.
 async fn handle_connection(conn: ft::File, addr: ft::net::SocketAddr) {
     if let Err(err) = try_handle_connection(conn).await {
-        ft_log::error!("failed to handle a connection with `\x1B[33m{addr}\x1B[0m`: {err}");
+        ft_log::error!("failed to handle a connection with `{addr}`: {err}");
     }
 }
 
@@ -151,4 +153,25 @@ async fn try_handle_connection(conn: ft::File) -> ft::Result<()> {
     );
 
     Ok(())
+}
+
+/// Runs ticks on all the clients.
+pub async fn run_ticks(freq: f32) {
+    if let Err(err) = try_run_ticks(freq).await {
+        ft_log::error!("failed to run ticks: {err}");
+    }
+}
+
+/// See [`run_ticks`].
+pub async fn try_run_ticks(freq: f32) -> ft::Result<()> {
+    let period = Duration::from_secs_f32(1.0 / freq);
+    let mut next_tick = ft::Clock::MONOTONIC.get()?;
+
+    loop {
+        // Wait until the next tick.
+        ft_async::futures::sleep(next_tick).await;
+        next_tick += period;
+
+        ft_log::trace!("running a tick...");
+    }
 }

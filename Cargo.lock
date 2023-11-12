@@ -18,7 +18,7 @@ dependencies = [
 [[package]]
 name = "ft"
 version = "0.1.0"
-source = "git+https://github.com/nils-mathieu/libft-rs#72a93ee897845e578e9f2cff6596a8d0941eec5d"
+source = "git+https://github.com/nils-mathieu/libft-rs#0749462aaca79c1fbd46896b68168f525923e3fc"
 dependencies = [
  "bitflags",
  "libc",
