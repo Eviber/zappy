@@ -7,10 +7,12 @@
 
 extern crate alloc;
 
-use client::Client;
-
+use self::args::Args;
+use self::client::Client;
 use self::server::Server;
-use crate::args::Args;
+
+use core::sync::atomic::AtomicBool;
+use core::sync::atomic::Ordering::Relaxed;
 
 mod args;
 mod client;
@@ -18,8 +20,19 @@ mod server;
 
 /// The exit code to return in case of success.
 const EXIT_SUCCESS: u8 = 0;
+/// The exit code to return in case of unexpected error.
+const EXIT_FAILURE: u8 = 1;
 /// The exit code to return in case of usage error.
 const EXIT_USAGE: u8 = 2;
+
+/// This boolean is set to `true` when the server is interrupted by an external signal
+/// (such as **SIGINT**).
+static INTERRUPTED: AtomicBool = AtomicBool::new(false);
+
+/// The **SIGINT** and **SIGTERM** signal handler.
+extern "C" fn interrupt_handler() {
+    INTERRUPTED.store(true, Relaxed);
+}
 
 fn main(args: &[&ft::CharStar], _env: &[&ft::CharStar]) -> u8 {
     let args = match Args::parse_args(args) {
@@ -40,10 +53,40 @@ fn main(args: &[&ft::CharStar], _env: &[&ft::CharStar]) -> u8 {
     ft_log::trace!("  - team slots: {}", args.initial_slot_count);
     ft_log::trace!("  - tick frequency: {}hz", args.tick_frequency);
 
+    ft_log::trace!("setting up the signal handlers...");
+    ft::Signal::Interrupt.set_handler(interrupt_handler);
+    ft::Signal::Terminate.set_handler(interrupt_handler);
+
+    ft_log::trace!("spawning tasks...");
     ft_async::EXECUTOR.spawn(run_server(args.port));
 
-    let err = ft_async::EXECUTOR.run();
-    ft_log::error!("failed to run the executor: {err}");
+    ft_log::trace!("running the executor...");
+    loop {
+        if INTERRUPTED.load(Relaxed) {
+            ft_log::trace!("interrupted, exiting...");
+            break;
+        }
+
+        if ft_async::EXECUTOR.is_empty() {
+            ft_log::trace!("no more tasks to run, exiting...");
+            break;
+        }
+
+        while ft_async::EXECUTOR.run_one_task() {}
+
+        // There are no more tasks to run, we have to wait
+        // until at least one task is ready to do some work.
+        match ft_async::EXECUTOR.block_until_ready() {
+            // We successfully found a task to run, or have been interrupted
+            // by a signal. In any case, we can go back to running tasks.
+            Ok(()) | Err(ft::Errno::INTERRUPTED) => (),
+            // An error occured.
+            Err(err) => {
+                ft_log::error!("failed to block until a task is ready: {err}");
+                return EXIT_FAILURE;
+            }
+        }
+    }
 
     EXIT_SUCCESS
 }

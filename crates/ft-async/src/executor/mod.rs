@@ -79,34 +79,54 @@ impl<'a> Executor<'a> {
         self.tasks.lock().set_ready(id);
     }
 
-    /// Runs all the tasks  that are currently ready.
-    fn run_all_ready_tasks(&self) {
-        loop {
-            let Some((id, mut task)) = self.tasks.lock().take_ready() else {
-                return;
-            };
+    /// Attempts to run a single task that is currently ready.
+    ///
+    /// If no task is ready, this function returns `false`.
+    pub fn run_one_task(&self) -> bool {
+        let Some((id, mut task)) = self.tasks.lock().take_ready() else {
+            return false;
+        };
 
-            let waker = waker_from_task_id(id);
-            let mut context = Context::from_waker(&waker);
-            match task.as_mut().poll(&mut context) {
-                Poll::Ready(()) => self.tasks.lock().now_ready(),
-                Poll::Pending => self.tasks.lock().now_pending(task),
-            }
+        let waker = waker_from_task_id(id);
+        let mut context = Context::from_waker(&waker);
+        match task.as_mut().poll(&mut context) {
+            Poll::Ready(()) => self.tasks.lock().now_ready(),
+            Poll::Pending => self.tasks.lock().now_pending(task),
         }
+
+        true
     }
 
-    /// Runs the executor until an error occurs.
-    pub fn run(&self) -> ft::Errno {
-        loop {
-            match self.waker.lock().block_until_ready() {
-                Ok(()) => (),
-                Err(err) => break err,
-            }
+    /// Waits until at least one task is ready to do some work.
+    #[inline]
+    pub fn block_until_ready(&self) -> ft::Result<()> {
+        self.waker.lock().block_until_ready()
+    }
 
-            self.run_all_ready_tasks();
-        }
+    /// Returns whether the executor is empty (i.e. has no more tasks to run, ever).
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.tasks.lock().is_empty()
+    }
+
+    /// Clears the executor of all its running tasks, resting it to its initial state.
+    ///
+    /// This function may additionally be used to free up the memory it uses.
+    pub fn clean(&self) {
+        *self.tasks.lock() = Tasks::new();
+        *self.waker.lock() = TaskWaker::new();
     }
 }
 
 /// The global executor.
 pub static EXECUTOR: Executor<'static> = Executor::new();
+
+/// Registers the `clear_executor` function to be called when the program exits.
+extern "C" fn setup_clear_executor() {
+    extern "C" fn clear_executor() {
+        EXECUTOR.clean();
+    }
+
+    ft::at_exit(clear_executor);
+}
+ft::ctor!(setup_clear_executor);

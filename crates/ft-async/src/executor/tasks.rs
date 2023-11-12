@@ -21,6 +21,12 @@ impl<'a> Tasks<'a> {
         }
     }
 
+    /// Returns whether the collection contains no tasks.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.tasks.is_empty()
+    }
+
     /// Returns a task that is ready to be polled, if any.
     pub fn take_ready(&mut self) -> Option<(usize, Task<'a>)> {
         while let Some(id) = self.ready.pop_front() {
