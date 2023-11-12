@@ -21,10 +21,10 @@ mod server;
 
 /// The exit code to return in case of success.
 const EXIT_SUCCESS: u8 = 0;
-/// The exit code to return in case of usage error.
-const EXIT_USAGE: u8 = 2;
 /// The exit code to return in case of unexpected error.
 const EXIT_FAILURE: u8 = 1;
+/// The exit code to return in case of usage error.
+const EXIT_USAGE: u8 = 2;
 
 /// This boolean is set to `true` when the server is interrupted by an external signal
 /// (such as **SIGINT**).
