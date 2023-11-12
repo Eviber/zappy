@@ -108,7 +108,25 @@ impl<'a> Executor<'a> {
     pub fn is_empty(&self) -> bool {
         self.tasks.lock().is_empty()
     }
+
+    /// Clears the executor of all its running tasks, resting it to its initial state.
+    ///
+    /// This function may additionally be used to free up the memory it uses.
+    pub fn clean(&self) {
+        *self.tasks.lock() = Tasks::new();
+        *self.waker.lock() = TaskWaker::new();
+    }
 }
 
 /// The global executor.
 pub static EXECUTOR: Executor<'static> = Executor::new();
+
+/// Registers the `clear_executor` function to be called when the program exits.
+extern "C" fn setup_clear_executor() {
+    extern "C" fn clear_executor() {
+        EXECUTOR.clean();
+    }
+
+    ft::at_exit(clear_executor);
+}
+ft::ctor!(setup_clear_executor);
