@@ -1,5 +1,5 @@
 [package]
-name = "zappy_server"
+name = "server"
 description = "The Zappy server."
 
 edition.workspace = true

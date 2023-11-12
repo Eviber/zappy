@@ -1,5 +1,5 @@
 [package]
-name = "zappy_client"
+name = "client"
 description = "A Zappy client."
 
 edition.workspace = true
