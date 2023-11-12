@@ -1,5 +1,5 @@
 /target
 **.DS_Store
-server
-client
-gfx
+/server
+/client
+/gfx
