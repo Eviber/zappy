@@ -10,17 +10,42 @@ extern crate alloc;
 use client::Client;
 
 use self::server::Server;
+use crate::args::Args;
 
+mod args;
 mod client;
 mod server;
 
-fn main(_args: &[&ft::CharStar], _env: &[&ft::CharStar]) -> u8 {
-    ft_async::EXECUTOR.spawn(run_server(1234));
+/// The exit code to return in case of success.
+const EXIT_SUCCESS: u8 = 0;
+/// The exit code to return in case of usage error.
+const EXIT_USAGE: u8 = 2;
+
+fn main(args: &[&ft::CharStar], _env: &[&ft::CharStar]) -> u8 {
+    let args = match Args::parse_args(args) {
+        Ok(ok) => ok,
+        Err(err) => {
+            ft::eprintf!(
+                core::concat!("\x1B[1;31merror:\x1B[0m {}\n\n", include_str!("usage.txt")),
+                err
+            );
+            return EXIT_USAGE;
+        }
+    };
+
+    ft_log::trace!("ARGUMENTS:");
+    ft_log::trace!("  - port: {}", args.port);
+    ft_log::trace!("  - size: {}x{}", args.width, args.height);
+    ft_log::trace!("  - teams: {:?}", args.teams);
+    ft_log::trace!("  - team slots: {}", args.initial_slot_count);
+    ft_log::trace!("  - tick frequency: {}hz", args.tick_frequency);
+
+    ft_async::EXECUTOR.spawn(run_server(args.port));
 
     let err = ft_async::EXECUTOR.run();
     ft_log::error!("failed to run the executor: {err}");
 
-    0
+    EXIT_SUCCESS
 }
 
 ft::entry_point!(main);
