@@ -44,7 +44,7 @@ pub struct Args<'a> {
     ///
     /// Passed using the `-p` flag.
     ///
-    /// **Default:** `4242`
+    /// **Default:** `1234`
     pub port: u16,
     /// The width of the world.
     ///
@@ -110,7 +110,7 @@ impl<'a> Args<'a> {
 impl<'a> Default for Args<'a> {
     fn default() -> Self {
         Self {
-            port: 4242,
+            port: 1234,
             width: 32,
             height: 32,
             teams: vec!["Blue", "Red"],
@@ -140,7 +140,7 @@ where
     I: Iterator<Item = &'b &'a CharStar>,
     'a: 'b,
 {
-    let mut value = Vec::new();
+    let mut values = Vec::new();
 
     let teams = args.next().ok_or(Error::MissingValue(arg))?;
     for name in teams.split(b',') {
@@ -150,8 +150,12 @@ where
             return Err(Error::InvalidTeamName(name.as_bytes()));
         }
 
-        value.push(name);
+        values.push(name);
     }
 
-    Ok(value)
+    if values.is_empty() {
+        return Err(Error::MissingValue(arg));
+    }
+
+    Ok(values)
 }

@@ -1,7 +1,27 @@
-Usage: ./server -p <port> -x <width> -y <height> -n <team> [<team>],[<team>],... -c <nb> -t <t>
-    -p port number
-    -x world width
-    -y world height
-    -n team\_name\_1 team\_name\_2 ...
-    -c number of clients authorized at the beginning of the game
-    -t time unit divider (the greater t is, the faster the game will go)
+[4mUSAGE:[0m
+    zappy_server [OPTIONS]
+
+[4mOPTIONS:[0m
+  [1m-p <port>[0m
+    The TCP port the server should listen on.
+
+  [1m-x <width>[0m
+    The initial width of the simulated world.
+
+  [1m-y <height>[0m
+    The initial height of the simulated world.
+
+  [1m-n <team1>[,<team2>,...][0m
+    The names of the teams that will be playing against each other.
+
+  [1m-c <slot-count>[0m
+    The initial number of slots available in each teams.
+
+  [1m-t <tick-frequency>[0m
+    The frequency at which the server should simulate as single step of
+    simulation. The higher the value, the faster the simulation should go.
+
+[4mAUTHORS:[0m
+    Youva Gaudé <ygaude@student.42.fr>
+    Tiago Lernould <tlernoul@student.42.fr>
+    Nils Mathieu <nmathieu@student.42.fr>
