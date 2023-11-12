@@ -7,8 +7,8 @@
 
 extern crate alloc;
 
-use client::Client;
-
+use self::args::Args;
+use self::client::Client;
 use self::server::Server;
 use crate::args::Args;
 
