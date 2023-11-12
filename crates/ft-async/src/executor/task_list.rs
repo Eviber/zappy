@@ -21,6 +21,11 @@ pub struct TaskList<'a> {
     ///
     /// If no slot is empty, this is equal to `tasks.len()`.
     first_hole: usize,
+    /// Keeps track of the number of tasks in the list.
+    ///
+    /// This is mainly here to avoid having to iterate over the entire list every
+    /// time we want to know if it is empty.
+    count: usize,
 }
 
 impl<'a> TaskList<'a> {
@@ -30,7 +35,14 @@ impl<'a> TaskList<'a> {
             tasks: Vec::new(),
             reserved: usize::MAX,
             first_hole: 0,
+            count: 0,
         }
+    }
+
+    /// Returns whether the list is empty.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
     }
 
     /// Attempts to find a hole in the list, starting from the current first hole,
@@ -50,11 +62,13 @@ impl<'a> TaskList<'a> {
             *slot = Some(task);
             let id = self.first_hole;
             self.update_hole_rightward();
+            self.count += 1;
             id
         } else {
             let id = self.tasks.len();
             self.tasks.push(Some(task));
             self.first_hole = self.tasks.len();
+            self.count += 1;
             id
         }
     }
@@ -88,6 +102,7 @@ impl<'a> TaskList<'a> {
     pub fn give_up_reserved(&mut self) {
         debug_assert!(self.reserved != usize::MAX);
         self.reserved = usize::MAX;
+        self.count -= 1;
 
         // If the reserved slot is the first hole, we need to update the first hole.
         match self.reserved.cmp(&self.first_hole) {
