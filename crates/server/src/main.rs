@@ -10,7 +10,6 @@ extern crate alloc;
 use self::args::Args;
 use self::client::Client;
 use self::server::Server;
-use crate::args::Args;
 
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering::Relaxed;
