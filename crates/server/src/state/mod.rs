@@ -14,6 +14,45 @@ pub use self::world::*;
 /// The ID of a team.
 pub type TeamId = usize;
 
+/// A command that a player may attempt to execute.
+#[derive(Debug)]
+pub enum Command {
+    /// The `avance` command.
+    MoveForward,
+    /// The `gauche` command.
+    TurnLeft,
+    /// The `droite` command.
+    TurnRight,
+    /// The `voir` command.
+    LookAround,
+    /// The `inventaire` command.
+    Inventory,
+    /// The `prend` command.
+    PickUpObject(ObjectClass),
+    /// The `pose` command.
+    DropObject(ObjectClass),
+    /// The `expulse` command.
+    KnockPlayer,
+    /// The `broadcast` command.
+    Broadcast(Box<[u8]>),
+    /// The `incantation` command.
+    Evolve,
+    /// The `fork` command.
+    LayAnEgg,
+    /// The `connect_nbr` command.
+    AvailableTeamSlots,
+}
+
+/// A command scheduled to be executed in the future.
+struct ScheduledCommand {
+    /// The player that scheduled the command.
+    player: PlayerId,
+    /// The command to execute.
+    command: Command,
+    /// The remaining number of ticks before the command is executed.
+    remaining_ticks: u32,
+}
+
 /// Information about the state of a team.
 pub struct Team {
     /// The name of the team.
@@ -43,6 +82,8 @@ pub struct State {
     players: Vec<PlayerState>,
     /// The current state of the world.
     world: World,
+    /// The commands that have been scheduled to be executed in the future.
+    commands: Vec<ScheduledCommand>,
 }
 
 impl State {
@@ -63,6 +104,7 @@ impl State {
             teams,
             players: Vec::new(),
             world,
+            commands: Vec::new(),
         }
     }
 
@@ -104,6 +146,19 @@ impl State {
         Ok(client.id())
     }
 
+    /// Returns the index of a player in the list of players.
+    #[inline]
+    fn player_index_by_id(&self, player: PlayerId) -> Option<usize> {
+        self.players.iter().position(|p| p.player_id == player)
+    }
+
+    /// Returns the state of the player with the provided ID.
+    fn player_mut(&mut self, player: PlayerId) -> &mut PlayerState {
+        self.player_index_by_id(player)
+            .and_then(|i| self.players.get_mut(i))
+            .expect("no player with the provided ID")
+    }
+
     /// Removes a player from the server.
     pub fn leave(&mut self, player: PlayerId) {
         let index = self
@@ -114,6 +169,9 @@ impl State {
 
         let player = self.players.remove(index);
         self.teams[player.team_id].available_slots += 1;
+
+        // Remove commands scheduled by the player.
+        self.commands.retain(|cmd| cmd.player != player.player_id);
     }
 
     /// Returns the number of available slots in the specified team.
@@ -128,71 +186,51 @@ impl State {
         &self.world
     }
 
-    /// Moves the player forward.
-    pub fn move_forward(&mut self, player_id: PlayerId) {
-        unimplemented!();
-    }
+    /// Schedules a command to be executed in the future.
+    pub fn schedule_command(&mut self, player: PlayerId, command: Command) {
+        let ticks = match &command {
+            Command::MoveForward => 7,
+            Command::TurnLeft => 7,
+            Command::TurnRight => 7,
+            Command::LookAround => 7,
+            Command::Inventory => 1,
+            Command::PickUpObject(_) => 7,
+            Command::DropObject(_) => 7,
+            Command::KnockPlayer => 7,
+            Command::Broadcast(_) => 7,
+            Command::Evolve => 300,
+            Command::LayAnEgg => 42,
+            Command::AvailableTeamSlots => 0,
+        };
 
-    /// Turns the player to the right.
-    pub fn turn_right(&mut self, player_id: PlayerId) {
-        unimplemented!();
-    }
-
-    /// Turns the player to the left.
-    pub fn turn_left(&mut self, player_id: PlayerId) {
-        unimplemented!();
-    }
-
-    /// Allow the player to look around..
-    pub fn look_around(&mut self, player_id: PlayerId) {
-        unimplemented!();
-    }
-
-    /// Allow the player to look into their inventory.
-    pub fn inventory(&mut self, player_id: PlayerId) {
-        unimplemented!();
-    }
-
-    /// Allow the player to pick up an object.
-    pub fn pick_up_object(
-        &mut self,
-        player_id: PlayerId,
-        object: ObjectClass,
-    ) -> Result<(), PlayerError> {
-        unimplemented!();
-    }
-
-    /// Allow the player to drop an object.
-    pub fn drop_object(
-        &mut self,
-        player_id: PlayerId,
-        object: ObjectClass,
-    ) -> Result<(), PlayerError> {
-        unimplemented!();
-    }
-
-    /// Allow the player to expel another player.
-    pub fn knock(&mut self, player_id: PlayerId) {
-        unimplemented!();
-    }
-
-    /// Allow the player to broadcast a message.
-    pub fn broadcast(&mut self, player_id: PlayerId, message: &[u8]) {
-        unimplemented!();
-    }
-
-    /// Allow the player to lay an egg.
-    pub fn lay_egg(&mut self, player_id: PlayerId) {
-        unimplemented!();
-    }
-
-    /// Allow the player to evolve.
-    pub fn evolve(&mut self, player_id: PlayerId) {
-        unimplemented!();
+        self.commands.push(ScheduledCommand {
+            player,
+            command,
+            remaining_ticks: ticks,
+        });
     }
 
     /// Notifies the state that a whole tick has passed.
-    pub fn tick(&mut self) {}
+    pub async fn tick(&mut self) -> ft::Result<()> {
+        let mut i = 0;
+        loop {
+            let Some(cmd) = self.commands.get_mut(i) else {
+                break Ok(());
+            };
+
+            if cmd.remaining_ticks > 0 {
+                cmd.remaining_ticks -= 1;
+                i += 1;
+                continue;
+            }
+
+            let cmd = self.commands.swap_remove(i);
+
+            ft_log::trace!("executing command for #{}: {:?}", cmd.player, cmd.command);
+
+            self.player_mut(cmd.player).sender.ok().await?;
+        }
+    }
 
     /// Clears the whole state, deallocating all the resources it uses.
     pub fn clear(&mut self) {
@@ -222,10 +260,11 @@ pub fn set_state(state: State) {
 ///
 /// This function panics if the global state has not been initialized.
 #[inline]
-pub fn state() -> &'static ft::Mutex<State, ft::sync::mutex::NoBlockLock> {
+pub fn state() -> ft::sync::mutex::Guard<'static, State, ft::sync::mutex::NoBlockLock> {
     STATE
         .get()
         .expect("the global state has not been initialized")
+        .lock()
 }
 
 /// Registers the `clear_state` function to be called when the program exits.

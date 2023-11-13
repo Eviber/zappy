@@ -143,7 +143,7 @@ async fn handle_connection(conn: ft::File, addr: ft::net::SocketAddr) {
             ft_log::error!("failed to handle client #{id}: {err}");
         }
         Err(ClientError::Player(err)) => {
-            ft_log::error!("player #{id} behaved badly: {err}");
+            ft_log::info!("player #{id} behaved badly: {err}");
         }
     }
 }
@@ -174,7 +174,6 @@ async fn try_handle_connection(mut client: Client) -> Result<(), ClientError> {
         let team_name =
             core::str::from_utf8(team_name).map_err(|_| PlayerError::InvalidTeamName)?;
         let team_id = state()
-            .lock()
             .team_id_by_name(team_name)
             .ok_or_else(|| PlayerError::UnknownTeam(team_name.into()))?;
         self::player::handle(client, team_id).await
@@ -199,6 +198,6 @@ pub async fn try_run_ticks(freq: f32) -> ft::Result<()> {
         next_tick += period;
 
         // Notify the state.
-        state().lock().tick();
+        state().tick().await?;
     }
 }
