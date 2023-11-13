@@ -2,10 +2,10 @@
 
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use ft_async::sync::channel::Sender;
 
 use crate::args::Args;
-use crate::player::{Player, PlayerError, PlayerMsg};
+use crate::client::Client;
+use crate::player::{PlayerError, PlayerSender};
 
 mod world;
 
@@ -22,12 +22,25 @@ pub struct Team {
     available_slots: u32,
 }
 
+/// The ID of a player.
+pub type PlayerId = usize;
+
+/// The state of a player.
+pub struct PlayerState {
+    /// The ID of the player.
+    player_id: PlayerId,
+    /// The ID of the team the player is in.
+    team_id: TeamId,
+    /// The sending half of the channel used to send messages to the player.
+    sender: PlayerSender,
+}
+
 /// The global state of the server, responsible for managing the clients and the game.
 pub struct State {
     /// Information about the teams available in the current game.
     teams: Box<[Team]>,
-    /// The players currently connected to the server.
-    players: Vec<Player>,
+    /// The list of players currently connected to the server.
+    players: Vec<PlayerState>,
     /// The current state of the world.
     world: World,
 }
@@ -53,26 +66,24 @@ impl State {
         }
     }
 
+    /// Returns the ID of a team from its name.
+    pub fn team_id_by_name(&self, name: &str) -> Option<TeamId> {
+        self.teams.iter().position(|team| &*team.name == name)
+    }
+
     /// Registers a player to the server, joining the specified team.
     ///
     /// # Arguments
     ///
-    /// - `conn`: the file descriptor of the client.
-    ///
-    /// - `sender`: the channel used to send messages to the player.
+    /// - `client`: the client to register to the server.
     ///
     /// - `name`: the name of the team the player wants to join.
+    #[allow(clippy::unwrap_used)]
     pub fn try_join_team(
         &mut self,
-        sender: Sender<PlayerMsg>,
-        name: &str,
-    ) -> Result<TeamId, PlayerError> {
-        let team_id = self
-            .teams
-            .iter()
-            .position(|team| &*team.name == name)
-            .ok_or_else(|| PlayerError::UnknownTeam(name.into()))?;
-
+        client: &Client,
+        team_id: TeamId,
+    ) -> Result<PlayerId, PlayerError> {
         let team = &mut self.teams[team_id];
 
         if team.available_slots == 0 {
@@ -84,9 +95,25 @@ impl State {
 
         team.available_slots -= 1;
 
-        self.players.push(Player { sender, team_id });
+        self.players.push(PlayerState {
+            player_id: client.id(),
+            team_id,
+            sender: PlayerSender::new(client),
+        });
 
-        Ok(team_id)
+        Ok(client.id())
+    }
+
+    /// Removes a player from the server.
+    pub fn leave(&mut self, player: PlayerId) {
+        let index = self
+            .players
+            .iter()
+            .position(|p| p.player_id == player)
+            .expect("no player with the provided ID found");
+
+        let player = self.players.remove(index);
+        self.teams[player.team_id].available_slots += 1;
     }
 
     /// Returns the number of available slots in the specified team.

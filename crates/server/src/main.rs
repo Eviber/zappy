@@ -11,13 +11,11 @@ use self::args::Args;
 use self::client::{Client, ClientError};
 use self::player::PlayerError;
 use self::server::Server;
-use self::state::{set_state, state, State, TeamId};
+use self::state::{set_state, state, State};
 
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering::Relaxed;
 use core::time::Duration;
-use ft_async::sync::channel::Sender;
-use player::PlayerMsg;
 
 mod args;
 mod client;
@@ -159,7 +157,6 @@ async fn handle_connection(conn: ft::File, addr: ft::net::SocketAddr) {
 /// See [`handle_connection`].
 async fn try_handle_connection(mut client: Client) -> Result<(), ClientError> {
     let id = client.id();
-    let fd = client.fd();
 
     //
     // HANDSHAKE
@@ -182,54 +179,11 @@ async fn try_handle_connection(mut client: Client) -> Result<(), ClientError> {
     } else {
         let team_name =
             core::str::from_utf8(team_name).map_err(|_| PlayerError::InvalidTeamName)?;
-
-        // Open a channel to communicate with the player asynchronously.
-        let (sender, receiver) = ft_async::sync::channel::make();
-
-        // Attempt to make the player join the requested team.
-        let team_id = state().lock().try_join_team(sender.clone(), team_name)?;
-        ft_async::EXECUTOR.spawn(player::player_sender_task(fd, receiver));
-        ft_log::trace!("client #{id} joined team `{team_name}` (#{team_id})");
-        try_handle_player(client, team_id, sender).await
-    }
-}
-
-/// Handles a player.
-///
-/// This function is responsible for dispatching the requests from the player to the
-/// global state.
-async fn try_handle_player(
-    mut client: Client,
-    team_id: TeamId,
-    sender: Sender<PlayerMsg>,
-) -> Result<(), ClientError> {
-    let id = client.id();
-
-    // Send the handshake finished message to the player.
-    {
-        let lock = state().lock();
-        let msg = PlayerMsg::HandshakeFinished {
-            remaining_slots: lock.available_slots_for(team_id),
-            width: lock.world().width(),
-            height: lock.world().height(),
-        };
-        drop(lock);
-
-        sender
-            .send(msg)
-            .await
-            .ok()
-            .expect("failed to send message through the channel");
-    }
-
-    // Accept requests from the player and dispatch them to the global state.
-    loop {
-        let line = client.recv_line().await?;
-
-        ft_log::trace!(
-            "client #{id} sent `{}`",
-            core::str::from_utf8(line).unwrap_or("?")
-        );
+        let team_id = state()
+            .lock()
+            .team_id_by_name(team_name)
+            .ok_or_else(|| PlayerError::UnknownTeam(team_name.into()))?;
+        self::player::handle(client, team_id).await
     }
 }
 
