@@ -8,16 +8,22 @@
 extern crate alloc;
 
 use self::args::Args;
-use self::client::Client;
+use self::client::{Client, ClientError};
+use self::player::PlayerError;
 use self::server::Server;
+use self::state::{set_state, state, State, TeamId};
 
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering::Relaxed;
 use core::time::Duration;
+use ft_async::sync::channel::Sender;
+use player::PlayerMsg;
 
 mod args;
 mod client;
+mod player;
 mod server;
+mod state;
 
 /// The exit code to return in case of success.
 const EXIT_SUCCESS: u8 = 0;
@@ -53,6 +59,9 @@ fn main(args: &[&ft::CharStar], _env: &[&ft::CharStar]) -> u8 {
     ft_log::trace!("  - teams: {:?}", args.teams);
     ft_log::trace!("  - team slots: {}", args.initial_slot_count);
     ft_log::trace!("  - tick frequency: {}hz", args.tick_frequency);
+
+    ft_log::trace!("initializing the global state...");
+    set_state(State::from_args(&args));
 
     ft_log::trace!("setting up the signal handlers...");
     ft::Signal::Interrupt.set_handler(interrupt_handler);
@@ -116,21 +125,41 @@ async fn run_server(port: u16) {
             }
         };
 
-        ft_log::info!("accepted a connection from `{address}`");
         ft_async::EXECUTOR.spawn(handle_connection(conn, address));
     }
 }
 
 /// Handles a connection from a client.
 async fn handle_connection(conn: ft::File, addr: ft::net::SocketAddr) {
-    if let Err(err) = try_handle_connection(conn).await {
-        ft_log::error!("failed to handle a connection with `{addr}`: {err}");
+    let client = Client::new(conn);
+    let id = client.id();
+
+    ft_log::info!("accepted a connection from `{addr}` (#{id})");
+
+    match try_handle_connection(client).await {
+        Ok(()) => (),
+        Err(ClientError::Disconnected) => {
+            ft_log::info!("client #{id} disconnected");
+        }
+        Err(ClientError::Unexpected(err)) => {
+            ft_log::error!("failed to handle client #{id}: {err}");
+        }
+        Err(ClientError::Player(PlayerError::UnknownTeam(team_name))) => {
+            ft_log::info!("client #{id} wants to join team `{team_name}`, but it does not exist");
+        }
+        Err(ClientError::Player(PlayerError::TeamFull { name, id })) => {
+            ft_log::info!("client #{id} wants to join team `{name}` (#{id}), but it is full");
+        }
+        Err(ClientError::Player(PlayerError::InvalidTeamName)) => {
+            ft_log::info!("client #{id} sent a team name that is not valid UTF-8");
+        }
     }
 }
 
 /// See [`handle_connection`].
-async fn try_handle_connection(conn: ft::File) -> ft::Result<()> {
-    let mut client = Client::new(conn);
+async fn try_handle_connection(mut client: Client) -> Result<(), ClientError> {
+    let id = client.id();
+    let fd = client.fd();
 
     //
     // HANDSHAKE
@@ -147,12 +176,61 @@ async fn try_handle_connection(conn: ft::File) -> ft::Result<()> {
     client.send_raw(b"BIENVENUE\n").await?;
     let team_name = client.recv_line().await?;
 
-    ft_log::trace!(
-        "received team name: `{}`",
-        core::str::from_utf8(team_name).unwrap_or("<invalid-utf8>")
-    );
+    if team_name == b"GRAPHIC" {
+        ft_log::trace!("client #{id} is a graphical monitor");
+        todo!();
+    } else {
+        let team_name =
+            core::str::from_utf8(team_name).map_err(|_| PlayerError::InvalidTeamName)?;
 
-    Ok(())
+        // Open a channel to communicate with the player asynchronously.
+        let (sender, receiver) = ft_async::sync::channel::make();
+
+        // Attempt to make the player join the requested team.
+        let team_id = state().lock().try_join_team(sender.clone(), team_name)?;
+        ft_async::EXECUTOR.spawn(player::player_sender_task(fd, receiver));
+        ft_log::trace!("client #{id} joined team `{team_name}` (#{team_id})");
+        try_handle_player(client, team_id, sender).await
+    }
+}
+
+/// Handles a player.
+///
+/// This function is responsible for dispatching the requests from the player to the
+/// global state.
+async fn try_handle_player(
+    mut client: Client,
+    team_id: TeamId,
+    sender: Sender<PlayerMsg>,
+) -> Result<(), ClientError> {
+    let id = client.id();
+
+    // Send the handshake finished message to the player.
+    {
+        let lock = state().lock();
+        let msg = PlayerMsg::HandshakeFinished {
+            remaining_slots: lock.available_slots_for(team_id),
+            width: lock.world().width(),
+            height: lock.world().height(),
+        };
+        drop(lock);
+
+        sender
+            .send(msg)
+            .await
+            .ok()
+            .expect("failed to send message through the channel");
+    }
+
+    // Accept requests from the player and dispatch them to the global state.
+    loop {
+        let line = client.recv_line().await?;
+
+        ft_log::trace!(
+            "client #{id} sent `{}`",
+            core::str::from_utf8(line).unwrap_or("?")
+        );
+    }
 }
 
 /// Runs ticks on all the clients.
@@ -172,6 +250,7 @@ pub async fn try_run_ticks(freq: f32) -> ft::Result<()> {
         ft_async::futures::sleep(next_tick).await;
         next_tick += period;
 
-        ft_log::trace!("running a tick...");
+        // Notify the state.
+        state().lock().tick();
     }
 }

@@ -92,7 +92,7 @@ impl<'a> Future for ReadLine<'a> {
         //  the size of the pending block in the buffer.
         unsafe {
             let consumed = self.buf.pending().as_ptr();
-            self.buf.consume_unchecked(index);
+            self.buf.consume_unchecked(index + 1);
             Poll::Ready(Ok(core::slice::from_raw_parts(consumed, index)))
         }
     }
