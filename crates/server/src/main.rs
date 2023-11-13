@@ -142,14 +142,8 @@ async fn handle_connection(conn: ft::File, addr: ft::net::SocketAddr) {
         Err(ClientError::Unexpected(err)) => {
             ft_log::error!("failed to handle client #{id}: {err}");
         }
-        Err(ClientError::Player(PlayerError::UnknownTeam(team_name))) => {
-            ft_log::info!("client #{id} wants to join team `{team_name}`, but it does not exist");
-        }
-        Err(ClientError::Player(PlayerError::TeamFull { name, id })) => {
-            ft_log::info!("client #{id} wants to join team `{name}` (#{id}), but it is full");
-        }
-        Err(ClientError::Player(PlayerError::InvalidTeamName)) => {
-            ft_log::info!("client #{id} sent a team name that is not valid UTF-8");
+        Err(ClientError::Player(err)) => {
+            ft_log::error!("player #{id} behaved badly: {err}");
         }
     }
 }

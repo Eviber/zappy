@@ -98,7 +98,7 @@ impl State {
         self.players.push(PlayerState {
             player_id: client.id(),
             team_id,
-            sender: PlayerSender::new(client),
+            sender: PlayerSender::new(client.fd()),
         });
 
         Ok(client.id())
@@ -126,6 +126,69 @@ impl State {
     #[inline]
     pub fn world(&self) -> &World {
         &self.world
+    }
+
+    /// Moves the player forward.
+    pub fn move_forward(&mut self, player_id: PlayerId) {
+        unimplemented!();
+    }
+
+    /// Turns the player to the right.
+    pub fn turn_right(&mut self, player_id: PlayerId) {
+        unimplemented!();
+    }
+
+    /// Turns the player to the left.
+    pub fn turn_left(&mut self, player_id: PlayerId) {
+        unimplemented!();
+    }
+
+    /// Allow the player to look around..
+    pub fn look_around(&mut self, player_id: PlayerId) {
+        unimplemented!();
+    }
+
+    /// Allow the player to look into their inventory.
+    pub fn inventory(&mut self, player_id: PlayerId) {
+        unimplemented!();
+    }
+
+    /// Allow the player to pick up an object.
+    pub fn pick_up_object(
+        &mut self,
+        player_id: PlayerId,
+        object: ObjectClass,
+    ) -> Result<(), PlayerError> {
+        unimplemented!();
+    }
+
+    /// Allow the player to drop an object.
+    pub fn drop_object(
+        &mut self,
+        player_id: PlayerId,
+        object: ObjectClass,
+    ) -> Result<(), PlayerError> {
+        unimplemented!();
+    }
+
+    /// Allow the player to expel another player.
+    pub fn knock(&mut self, player_id: PlayerId) {
+        unimplemented!();
+    }
+
+    /// Allow the player to broadcast a message.
+    pub fn broadcast(&mut self, player_id: PlayerId, message: &[u8]) {
+        unimplemented!();
+    }
+
+    /// Allow the player to lay an egg.
+    pub fn lay_egg(&mut self, player_id: PlayerId) {
+        unimplemented!();
+    }
+
+    /// Allow the player to evolve.
+    pub fn evolve(&mut self, player_id: PlayerId) {
+        unimplemented!();
     }
 
     /// Notifies the state that a whole tick has passed.

@@ -6,6 +6,7 @@ use alloc::format;
 use crate::client::Client;
 use crate::client::ClientError;
 use crate::state::state;
+use crate::state::ObjectClass;
 use crate::state::PlayerId;
 use crate::state::TeamId;
 
@@ -31,7 +32,32 @@ pub async fn handle(mut client: Client, team_id: TeamId) -> Result<(), ClientErr
     finish_handshake(&mut client, team_id).await?;
 
     loop {
-        let _line = client.recv_line().await?;
+        let line = client.recv_line().await?;
+        let (cmd_name, args) = slice_split_once(line, b' ').unwrap_or((line, b""));
+
+        match cmd_name {
+            b"avance" => state().lock().move_forward(player_id),
+            b"droite" => state().lock().turn_right(player_id),
+            b"gauche" => state().lock().turn_left(player_id),
+            b"voir" => state().lock().look_around(player_id),
+            b"inventaire" => state().lock().inventory(player_id),
+            b"prend" => {
+                let object = ObjectClass::from_arg(args)
+                    .ok_or_else(|| PlayerError::UnknownObjectClass(args.into()))?;
+                state().lock().pick_up_object(player_id, object)?;
+            }
+            b"pose" => {
+                let object = ObjectClass::from_arg(args)
+                    .ok_or_else(|| PlayerError::UnknownObjectClass(args.into()))?;
+                state().lock().drop_object(player_id, object)?;
+            }
+            b"expulse" => state().lock().knock(player_id),
+            b"broadcast" => state().lock().broadcast(player_id, args),
+            b"incantation" => state().lock().evolve(player_id),
+            b"fork" => state().lock().lay_egg(player_id),
+            b"connect_nbr" => unimplemented!(),
+            _ => return Err(PlayerError::UnknownCommand(cmd_name.into()).into()),
+        }
     }
 }
 
@@ -48,4 +74,12 @@ async fn finish_handshake(client: &mut Client, team_id: TeamId) -> ft::Result<()
     client
         .send_raw(format!("{available_slots}\n{width} {height}\n").as_bytes())
         .await
+}
+
+/// Splits the provided slice into two parts at the first occurrence of the provided delimiter.
+fn slice_split_once(slice: &[u8], delim: u8) -> Option<(&[u8], &[u8])> {
+    slice
+        .iter()
+        .position(|&b| b == delim)
+        .map(|pos| (&slice[..pos], &slice[pos + 1..]))
 }

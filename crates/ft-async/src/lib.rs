@@ -11,4 +11,3 @@ mod executor;
 pub use executor::{Executor, EXECUTOR};
 
 pub mod futures;
-pub mod sync;

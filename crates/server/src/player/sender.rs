@@ -1,55 +1,83 @@
-use alloc::string::String;
 use core::fmt;
 
-use ft_async::sync::channel::{Receiver, Sender};
-
-use crate::client::Client;
-
-/// A message that can be sent from the server to the player.
-enum PlayerMsg {}
-
-impl PlayerMsg {
-    /// Writes the message to the provided buffer.
-    pub fn write(&self, buf: &mut String) -> fmt::Result {
-        match *self {}
-    }
-}
+use alloc::string::String;
 
 /// The sender side of a channel used to send messages to a player.
 #[derive(Clone)]
-pub struct PlayerSender(Sender<PlayerMsg>);
+pub struct PlayerSender {
+    /// A buffer used to store formatted messages before sending them to the player.
+    buffer: String,
+    /// The file descriptor to which the messages are sent.
+    conn: ft::Fd,
+}
 
 impl PlayerSender {
     /// Creates a new [`PlayerSender`] from the provided client.
-    ///
-    /// This function will spawn a task in the background that will be responsible for
-    /// sending the messages to the player when they are dispatched through the returned
-    /// channel.
-    pub fn new(client: &Client) -> Self {
-        let (sender, receiver) = ft_async::sync::channel::make();
-
-        ft_async::EXECUTOR.spawn(send_messages_task(client.fd(), client.id(), receiver));
-
-        Self(sender)
-    }
-}
-
-/// A task that should run in the background to send the messages dispatched through a
-/// channel the player.
-async fn send_messages_task(fd: ft::Fd, id: usize, receiver: Receiver<PlayerMsg>) {
-    // This buffer will be written to when certain messages need to be formatted.
-    let mut buf = String::new();
-
-    while let Some(msg) = receiver.recv().await {
-        buf.clear();
-        msg.write(&mut buf).expect("failed to format the message");
-
-        ft_async::futures::ready_for_writing(fd).await;
-        if let Err(err) = ft_async::futures::write_all(fd, buf.as_bytes()).await {
-            ft_log::error!("failed to send message to client #{id}: {}", err);
-            break;
+    pub fn new(fd: ft::Fd) -> Self {
+        Self {
+            buffer: String::new(),
+            conn: fd,
         }
     }
 
-    ft_log::trace!("player message sender task (client #{id}) terminated");
+    async fn send_raw(&mut self, buf: &[u8]) -> ft::Result<()> {
+        ft_async::futures::ready_for_writing(self.conn).await;
+        ft_async::futures::write_all(self.conn, buf).await
+    }
+
+    /// Sends the provided formatted message to the player.
+    async fn send_fmt(&mut self, args: fmt::Arguments<'_>) -> ft::Result<()> {
+        self.buffer.clear();
+        fmt::write(&mut self.buffer, args).expect("failed to format message");
+        ft_async::futures::ready_for_writing(self.conn).await;
+        ft_async::futures::write_all(self.conn, self.buffer.as_bytes()).await
+    }
+
+    /// Send "ok" to the player.
+    pub async fn ok(&mut self) -> ft::Result<()> {
+        self.send_raw(b"ok\n").await
+    }
+
+    /// Send "ko" to the player.
+    pub async fn ko(&mut self) -> ft::Result<()> {
+        self.send_raw(b"ko\n").await
+    }
+
+    /// Send "mort" to the player.
+    pub async fn dead(&mut self) -> ft::Result<()> {
+        self.send_raw(b"mort\n").await
+    }
+
+    /// Send "elevation en cours" to the player.
+    pub async fn elevation_in_progress(&mut self) -> ft::Result<()> {
+        self.send_raw(b"elevation en cours\n").await
+    }
+
+    /// Send "niveau actuel : {level}" to the player.
+    pub async fn current_level(&mut self, level: u32) -> ft::Result<()> {
+        self.send_fmt(format_args!("niveau actuel : {}\n", level))
+            .await
+    }
+
+    /// Send "{case1, case2, ...}" to the player.
+    pub async fn see(&mut self, tiles: &[&str]) -> ft::Result<()> {
+        self.send_fmt(format_args!("voir {}\n", FormatSeeResponse(tiles)))
+            .await
+    }
+}
+
+/// A formatted response to a [`see`] request.
+struct FormatSeeResponse<'a>(&'a [&'a str]);
+
+impl<'a> fmt::Display for FormatSeeResponse<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("{");
+        for (i, tile) in self.0.iter().enumerate() {
+            f.write_str(tile)?;
+            f.write_str(", ")?;
+        }
+        f.write_str("}");
+
+        Ok(())
+    }
 }
