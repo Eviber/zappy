@@ -1,12 +1,15 @@
+
 [workspace]
 members = ["crates/*"]
 resolver = "2"
 
 [profile.dev]
 panic = "abort"
+lto = true
 
 [profile.release]
 panic = "abort"
+lto = true
 
 [workspace.package]
 version = "0.1.0"
