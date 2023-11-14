@@ -6,6 +6,7 @@
 #![warn(missing_docs, clippy::must_use_candidate)]
 
 extern crate alloc;
+extern crate unwinding;
 
 use self::args::Args;
 use self::client::{Client, ClientError};

@@ -11,14 +11,11 @@ checksum = "327762f6e5a765692301e5bb513e0d9fef63be86bbc14528052b1cd3e6f03e07"
 [[package]]
 name = "client"
 version = "0.1.0"
-dependencies = [
- "ft",
-]
 
 [[package]]
 name = "ft"
 version = "0.1.0"
-source = "git+https://github.com/nils-mathieu/libft-rs#4679ed561a371622230f7e4d9d70fb9e42cf8a33"
+source = "git+https://github.com/nils-mathieu/libft-rs#d58e6ce525836861124893cba765e54a666fc0dc"
 dependencies = [
  "bitflags",
  "libc",
@@ -43,6 +40,12 @@ name = "gfx"
 version = "0.1.0"
 
 [[package]]
+name = "gimli"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6fb8d784f27acf97159b40fc4db5ecd8aa23b9ad5ef69cdd136d3bc80665f0c0"
+
+[[package]]
 name = "libc"
 version = "0.2.150"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -55,4 +58,14 @@ dependencies = [
  "ft",
  "ft-async",
  "ft-log",
+ "unwinding",
+]
+
+[[package]]
+name = "unwinding"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37a19a21a537f635c16c7576f22d0f2f7d63353c1337ad4ce0d8001c7952a25b"
+dependencies = [
+ "gimli",
 ]
