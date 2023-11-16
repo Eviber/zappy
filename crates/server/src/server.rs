@@ -7,8 +7,11 @@ impl Server {
     /// Opens a TCP server on the provided port.
     pub fn new(port: u16) -> ft::Result<Self> {
         let address = ft::net::SocketAddr::V4([0, 0, 0, 0], port);
+        ft_log::debug!("creating a TCP socket");
         let socket = ft::File::socket(address.family(), ft::net::SocketType::Stream)?;
+        ft_log::debug!("binding to {address}");
         socket.bind(&address)?;
+        ft_log::debug!("listening for connections");
         socket.listen(128)?;
         Ok(Self(socket))
     }
