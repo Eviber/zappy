@@ -182,14 +182,14 @@ async fn try_handle_connection(mut client: Client) -> Result<(), ClientError> {
 }
 
 /// Runs ticks on all the clients.
-pub async fn run_ticks(freq: f32) {
+async fn run_ticks(freq: f32) {
     if let Err(err) = try_run_ticks(freq).await {
         ft_log::error!("failed to run ticks: {err}");
     }
 }
 
 /// See [`run_ticks`].
-pub async fn try_run_ticks(freq: f32) -> ft::Result<()> {
+async fn try_run_ticks(freq: f32) -> ft::Result<()> {
     let period = Duration::from_secs_f32(1.0 / freq);
     let mut next_tick = ft::Clock::MONOTONIC.get()?;
 
