@@ -80,10 +80,17 @@ impl<'a> Future for ReadLine<'a> {
         };
 
         // Try to find the index of the delimiter.
-        let Some(index) = added.iter().position(|&byte| byte == b'\n') else {
+        let Some(mut index) = added.iter().position(|&byte| byte == b'\n') else {
             EXECUTOR.wake_me_up_on_read(self.fd, cx.waker().clone());
             return Poll::Pending;
         };
+
+        // Convert the index into the index of the delimiter *within* the pending
+        // buffer; not just within the added bytes.
+        index += added
+            .len()
+            .wrapping_neg()
+            .wrapping_add(self.buf.pending().len());
 
         // Consume and return the line.
 
