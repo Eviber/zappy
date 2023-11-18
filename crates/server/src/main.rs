@@ -170,7 +170,7 @@ async fn try_handle_connection(mut client: Client) -> Result<(), ClientError> {
 
     if team_name == b"GRAPHIC" {
         ft_log::trace!("client #{id} is a graphical monitor");
-        todo!();
+        unimplemented!("graphical monitors are not yet supported");
     } else {
         let team_name =
             core::str::from_utf8(team_name).map_err(|_| PlayerError::InvalidTeamName)?;
