@@ -6,17 +6,23 @@
 #![warn(missing_docs, clippy::must_use_candidate)]
 
 extern crate alloc;
+extern crate unwinding;
 
 use self::args::Args;
-use self::client::Client;
+use self::client::{Client, ClientError};
+use self::player::PlayerError;
 use self::server::Server;
+use self::state::{set_state, state, State};
 
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering::Relaxed;
+use core::time::Duration;
 
 mod args;
 mod client;
+mod player;
 mod server;
+mod state;
 
 /// The exit code to return in case of success.
 const EXIT_SUCCESS: u8 = 0;
@@ -53,12 +59,16 @@ fn main(args: &[&ft::CharStar], _env: &[&ft::CharStar]) -> u8 {
     ft_log::trace!("  - team slots: {}", args.initial_slot_count);
     ft_log::trace!("  - tick frequency: {}hz", args.tick_frequency);
 
+    ft_log::trace!("initializing the global state...");
+    set_state(State::from_args(&args));
+
     ft_log::trace!("setting up the signal handlers...");
     ft::Signal::Interrupt.set_handler(interrupt_handler);
     ft::Signal::Terminate.set_handler(interrupt_handler);
 
     ft_log::trace!("spawning tasks...");
     ft_async::EXECUTOR.spawn(run_server(args.port));
+    ft_async::EXECUTOR.spawn(run_ticks(args.tick_frequency));
 
     ft_log::trace!("running the executor...");
     loop {
@@ -114,21 +124,34 @@ async fn run_server(port: u16) {
             }
         };
 
-        ft_log::info!("accepted a connection from `\x1B[33m{address}\x1B[0m`");
         ft_async::EXECUTOR.spawn(handle_connection(conn, address));
     }
 }
 
 /// Handles a connection from a client.
 async fn handle_connection(conn: ft::File, addr: ft::net::SocketAddr) {
-    if let Err(err) = try_handle_connection(conn).await {
-        ft_log::error!("failed to handle a connection with `\x1B[33m{addr}\x1B[0m`: {err}");
+    let client = Client::new(conn);
+    let id = client.id();
+
+    ft_log::info!("accepted a connection from `{addr}` (#{id})");
+
+    match try_handle_connection(client).await {
+        Ok(()) => (),
+        Err(ClientError::Disconnected) => {
+            ft_log::info!("client #{id} disconnected");
+        }
+        Err(ClientError::Unexpected(err)) => {
+            ft_log::error!("failed to handle client #{id}: {err}");
+        }
+        Err(ClientError::Player(err)) => {
+            ft_log::info!("player #{id} behaved badly: {err}");
+        }
     }
 }
 
 /// See [`handle_connection`].
-async fn try_handle_connection(conn: ft::File) -> ft::Result<()> {
-    let mut client = Client::new(conn);
+async fn try_handle_connection(mut client: Client) -> Result<(), ClientError> {
+    let id = client.id();
 
     //
     // HANDSHAKE
@@ -145,10 +168,37 @@ async fn try_handle_connection(conn: ft::File) -> ft::Result<()> {
     client.send_raw(b"BIENVENUE\n").await?;
     let team_name = client.recv_line().await?;
 
-    ft_log::trace!(
-        "received team name: `{}`",
-        core::str::from_utf8(team_name).unwrap_or("<invalid-utf8>")
-    );
+    if team_name == b"GRAPHIC" {
+        ft_log::trace!("client #{id} is a graphical monitor");
+        unimplemented!("graphical monitors are not yet supported");
+    } else {
+        let team_name =
+            core::str::from_utf8(team_name).map_err(|_| PlayerError::InvalidTeamName)?;
+        let team_id = state()
+            .team_id_by_name(team_name)
+            .ok_or_else(|| PlayerError::UnknownTeam(team_name.into()))?;
+        self::player::handle(client, team_id).await
+    }
+}
 
-    Ok(())
+/// Runs ticks on all the clients.
+async fn run_ticks(freq: f32) {
+    if let Err(err) = try_run_ticks(freq).await {
+        ft_log::error!("failed to run ticks: {err}");
+    }
+}
+
+/// See [`run_ticks`].
+async fn try_run_ticks(freq: f32) -> ft::Result<()> {
+    let period = Duration::from_secs_f32(1.0 / freq);
+    let mut next_tick = ft::Clock::MONOTONIC.get()?;
+
+    loop {
+        // Wait until the next tick.
+        ft_async::futures::sleep(next_tick).await;
+        next_tick += period;
+
+        // Notify the state.
+        state().tick().await?;
+    }
 }
