@@ -224,7 +224,9 @@ impl State {
                 continue;
             }
 
-            let cmd = self.commands.swap_remove(i);
+            // We can't optimize this with a `swap_remove` because the order of
+            // commands must be preserved.
+            let cmd = self.commands.remove(i);
 
             ft_log::trace!("executing command for #{}: {:?}", cmd.player, cmd.command);
 
