@@ -14,3 +14,4 @@ readme.workspace = true
 [dependencies]
 ratatui = "0.24.1-alpha.2"
 crossterm = "0.27"
+anyhow = "1.0"
