@@ -31,7 +31,6 @@ pub async fn handle(mut client: Client, team_id: TeamId) -> Result<(), ClientErr
     let _guard = PlayerGuard(player_id);
 
     finish_handshake(&mut client, team_id).await?;
-    ft_log::debug!("hand shook");
 
     loop {
         let line = client.recv_line().await?;
@@ -75,7 +74,6 @@ async fn finish_handshake(client: &mut Client, team_id: TeamId) -> ft::Result<()
     let height = lock.world().height();
     drop(lock);
 
-    ft_log::debug!("sending handshake");
     client
         .send_raw(format!("{available_slots}\n{width} {height}\n").as_bytes())
         .await
