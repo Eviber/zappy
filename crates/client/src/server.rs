@@ -1,7 +1,11 @@
+/// Commands module
+pub mod commands;
 /// Server abstraction module
 
+/// Errors module
 mod errors;
 
+pub use commands::Command;
 use errors::InvalidResponse::MissingValue;
 pub use errors::Result;
 
@@ -9,6 +13,8 @@ use crate::args::Args;
 use clap::Parser;
 use io::{Read, Write};
 use std::{io, net::TcpStream};
+
+use self::commands::Response;
 
 /// Abstraction over the server.
 #[allow(dead_code)]
@@ -33,9 +39,7 @@ impl Server {
         stream.write_fmt(format_args!("{}\n", args.name))?;
 
         let received = read_from_stream(&mut stream)?;
-        let mut info = received
-            .split_whitespace()
-            .map(|s| s.parse());
+        let mut info = received.split_whitespace().map(|s| s.parse());
         let slots = info.next().ok_or(MissingValue)??;
         let width: usize = info.next().ok_or(MissingValue)??;
         let height: usize = info.next().ok_or(MissingValue)??;
@@ -49,7 +53,7 @@ impl Server {
     }
 
     /// Sends a command to the server.
-    pub fn send_command(&mut self, command: &str) -> Result<String> {
+    pub fn send_command(&mut self, command: Command) -> Result<Response> {
         print!("> {}...", command);
         std::io::stdout().flush()?;
         self.stream.write_fmt(format_args!("{}\n", command))?;
@@ -57,9 +61,9 @@ impl Server {
     }
 
     /// Reads a message from the server.
-    pub fn receive(&mut self) -> Result<String> {
-        let received = read_from_stream(&mut self.stream)?;
-        print!("in: {}", received);
+    pub fn receive(&mut self) -> Result<Response> {
+        let received = read_from_stream(&mut self.stream)?.trim().parse()?;
+        println!("in: {}", received);
         Ok(received)
     }
 }

@@ -5,7 +5,7 @@ use std::{error::Error, fmt::Display, num::ParseIntError};
 /// A specialized [`Result`] type for server operations.
 pub type Result<T> = std::result::Result<T, ServerError>;
 
-use InvalidResponse::{InvalidValue, MissingValue};
+use InvalidResponse::{InvalidInteger, MissingValue, ParsingError};
 
 /// Errors that can occur while communicating with the server.
 #[derive(Debug)]
@@ -51,7 +51,9 @@ pub enum InvalidResponse {
     /// A missing value.
     MissingValue,
     /// An invalid value.
-    InvalidValue(ParseIntError),
+    InvalidInteger(ParseIntError),
+    /// A parsing error.
+    ParsingError,
 }
 
 impl Error for InvalidResponse {}
@@ -60,13 +62,14 @@ impl Display for InvalidResponse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             MissingValue => write!(f, "missing value"),
-            InvalidValue(err) => write!(f, "invalid value: {}", err),
+            InvalidInteger(err) => write!(f, "invalid value: {}", err),
+            ParsingError => write!(f, "parsing error"),
         }
     }
 }
 
 impl From<ParseIntError> for InvalidResponse {
     fn from(err: ParseIntError) -> Self {
-        Self::InvalidValue(err)
+        Self::InvalidInteger(err)
     }
 }

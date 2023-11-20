@@ -8,13 +8,41 @@ mod args;
 /// Server communication.
 mod server;
 
-use server::{Result, Server};
+use server::{Command, Result, Server};
+
+/// Generate a random 64-bit integer.
+fn rand64() -> u64 {
+    use std::hash::{BuildHasher, Hasher};
+    std::hash::RandomState::new().build_hasher().finish()
+}
+
+/// Send a random command to the server.
+fn random_command() -> Command<'static> {
+    use Command::*;
+    let random_number = rand64();
+    match random_number % 12 {
+        0 => Forward,
+        1 => Right,
+        2 => Left,
+        3 => Look,
+        4 => Inventory,
+        5 => Take(server::commands::Object::Food),
+        6 => Drop(server::commands::Object::Food),
+        7 => Kick,
+        8 => Broadcast("Hello, world!"),
+        9 => Incantation,
+        10 => Fork,
+        11 => ConnectNbr,
+        _ => unreachable!(),
+    }
+}
 
 fn main() -> Result<()> {
     let mut server = Server::new()?;
     loop {
-        server.send_command("avance")?;
-        server.send_command("gauche")?;
+        if let Err(e) = server.send_command(random_command()) {
+            eprintln!("Error: {}", e);
+        }
     }
     // Ok(())
 }
