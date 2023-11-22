@@ -57,7 +57,9 @@ impl Server {
         print!("> {}...", command);
         std::io::stdout().flush()?;
         self.stream.write_fmt(format_args!("{}\n", command))?;
-        self.receive()
+        println!(" sent");
+        // self.receive()
+        Ok(Response::Ok)
     }
 
     /// Reads a message from the server.

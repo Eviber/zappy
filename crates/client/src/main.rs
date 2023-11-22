@@ -40,9 +40,6 @@ fn random_command() -> Command<'static> {
 fn main() -> Result<()> {
     let mut server = Server::new()?;
     loop {
-        if let Err(e) = server.send_command(random_command()) {
-            eprintln!("Error: {}", e);
-        }
+        server.send_command(random_command())?;
     }
-    // Ok(())
 }
