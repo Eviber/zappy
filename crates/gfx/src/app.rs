@@ -1,7 +1,6 @@
 /// Application.
 #[derive(Debug, Default)]
 pub struct App {
-    /// should the application exit?
     pub should_quit: bool,
     pub active_tab: usize,
     pub grid: Vec<Vec<char>>,
