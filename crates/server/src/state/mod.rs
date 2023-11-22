@@ -97,6 +97,22 @@ pub struct PlayerState {
     commands: ArrayVec<ScheduledCommand, 10>,
 }
 
+impl PlayerState {
+    /// Schedules a command for this player.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the command has been scheduled, `false` if the buffer is full.
+    pub fn schedule_command(&mut self, command: Command) -> bool {
+        self.commands
+            .try_push(ScheduledCommand {
+                remaining_ticks: command.ticks(),
+                command,
+            })
+            .is_ok()
+    }
+}
+
 /// The global state of the server, responsible for managing the clients and the game.
 #[allow(clippy::vec_box)] // `PlayerState` is a huge struct, copying it around is not a good idea.
 pub struct State {
@@ -175,7 +191,7 @@ impl State {
     }
 
     /// Returns the state of the player with the provided ID.
-    fn player_mut(&mut self, player: PlayerId) -> &mut PlayerState {
+    pub fn player_mut(&mut self, player: PlayerId) -> &mut PlayerState {
         self.player_index_by_id(player)
             .and_then(|i| self.players.get_mut(i))
             .expect("no player with the provided ID")
@@ -203,21 +219,6 @@ impl State {
     #[inline]
     pub fn world(&self) -> &World {
         &self.world
-    }
-
-    /// Schedules a command to be executed in the future.
-    ///
-    /// # Returns
-    ///
-    /// This function returns whether the function could actually be scheduled.
-    pub fn schedule_command(&mut self, player: PlayerId, command: Command) -> bool {
-        self.player_mut(player)
-            .commands
-            .try_push(ScheduledCommand {
-                remaining_ticks: command.ticks(),
-                command,
-            })
-            .is_ok()
     }
 
     /// Notifies the state that a whole tick has passed.

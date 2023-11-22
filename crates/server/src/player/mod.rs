@@ -55,7 +55,7 @@ pub async fn handle(mut client: Client, team_id: TeamId) -> Result<(), ClientErr
             _ => return Err(PlayerError::UnknownCommand(cmd_name.into()).into()),
         };
 
-        state().schedule_command(player_id, cmd);
+        state().player_mut(player_id).schedule_command(cmd);
     }
 }
 
