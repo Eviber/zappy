@@ -224,25 +224,27 @@ impl State {
     #[allow(clippy::unwrap_used)]
     pub async fn tick(&mut self) -> ft::Result<()> {
         for player in &mut self.players {
-            if let Some(command) = player.commands.first_mut() {
-                if command.remaining_ticks > 0 {
-                    command.remaining_ticks -= 1;
-                    continue;
-                }
+            let Some(command) = player.commands.first_mut() else {
+                continue;
+            };
 
-                // This unwrap can ever fail because the case where there is no
-                // first element is handled above.
-                let cmd = player.commands.remove(0).unwrap();
-
-                // Execute the command.
-                ft_log::trace!(
-                    "executing command for #{}: {:?}",
-                    player.player_id,
-                    cmd.command,
-                );
-
-                player.sender.ok().await?;
+            if command.remaining_ticks > 0 {
+                command.remaining_ticks -= 1;
+                continue;
             }
+
+            // This unwrap can ever fail because the case where there is no
+            // first element is handled above.
+            let cmd = player.commands.remove(0).unwrap();
+
+            // Execute the command.
+            ft_log::trace!(
+                "executing command for #{}: {:?}",
+                player.player_id,
+                cmd.command,
+            );
+
+            player.sender.ok().await?;
         }
 
         Ok(())
