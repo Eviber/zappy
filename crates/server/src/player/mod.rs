@@ -3,13 +3,8 @@ mod sender;
 
 use alloc::format;
 
-use crate::client::Client;
-use crate::client::ClientError;
-use crate::state::state;
-use crate::state::Command;
-use crate::state::ObjectClass;
-use crate::state::PlayerId;
-use crate::state::TeamId;
+use crate::client::{Client, ClientError};
+use crate::state::{state, Command, ObjectClass, PlayerId, TeamId};
 
 pub use self::error::*;
 pub use self::sender::*;

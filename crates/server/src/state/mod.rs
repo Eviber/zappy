@@ -3,6 +3,8 @@
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
+use ft::collections::ArrayVec;
+
 use crate::args::Args;
 use crate::client::Client;
 use crate::player::{PlayerError, PlayerSender};
@@ -43,14 +45,33 @@ pub enum Command {
     AvailableTeamSlots,
 }
 
-/// A command scheduled to be executed in the future.
-struct ScheduledCommand {
-    /// The player that scheduled the command.
-    player: PlayerId,
-    /// The command to execute.
-    command: Command,
-    /// The remaining number of ticks before the command is executed.
-    remaining_ticks: u32,
+impl Command {
+    /// Returns the number of ticks that this command takes to execute.
+    pub fn ticks(&self) -> u32 {
+        match self {
+            Command::MoveForward => 7,
+            Command::TurnLeft => 7,
+            Command::TurnRight => 7,
+            Command::LookAround => 7,
+            Command::Inventory => 1,
+            Command::PickUpObject(_) => 7,
+            Command::DropObject(_) => 7,
+            Command::KnockPlayer => 7,
+            Command::Broadcast(_) => 7,
+            Command::Evolve => 300,
+            Command::LayAnEgg => 42,
+            Command::AvailableTeamSlots => 0,
+        }
+    }
+}
+
+/// A command that has been scheduled to be executed in the future.
+#[derive(Debug)]
+pub struct ScheduledCommand {
+    /// The command that has been scheduled.
+    pub command: Command,
+    /// The number of ticks remaining before the command is executed.
+    pub remaining_ticks: u32,
 }
 
 /// Information about the state of a team.
@@ -72,18 +93,19 @@ pub struct PlayerState {
     team_id: TeamId,
     /// The sending half of the channel used to send messages to the player.
     sender: PlayerSender,
+    /// The commands that have been buffered for the player.
+    commands: ArrayVec<ScheduledCommand, 10>,
 }
 
 /// The global state of the server, responsible for managing the clients and the game.
+#[allow(clippy::vec_box)] // `PlayerState` is a huge struct, copying it around is not a good idea.
 pub struct State {
     /// Information about the teams available in the current game.
     teams: Box<[Team]>,
     /// The list of players currently connected to the server.
-    players: Vec<PlayerState>,
+    players: Vec<Box<PlayerState>>,
     /// The current state of the world.
     world: World,
-    /// The commands that have been scheduled to be executed in the future.
-    commands: Vec<ScheduledCommand>,
 }
 
 impl State {
@@ -104,7 +126,6 @@ impl State {
             teams,
             players: Vec::new(),
             world,
-            commands: Vec::new(),
         }
     }
 
@@ -137,11 +158,12 @@ impl State {
 
         team.available_slots -= 1;
 
-        self.players.push(PlayerState {
+        self.players.push(Box::new(PlayerState {
             player_id: client.id(),
             team_id,
             sender: PlayerSender::new(client.fd()),
-        });
+            commands: ArrayVec::new(),
+        }));
 
         Ok(client.id())
     }
@@ -169,9 +191,6 @@ impl State {
 
         let player = self.players.remove(index);
         self.teams[player.team_id].available_slots += 1;
-
-        // Remove commands scheduled by the player.
-        self.commands.retain(|cmd| cmd.player != player.player_id);
     }
 
     /// Returns the number of available slots in the specified team.
@@ -187,51 +206,46 @@ impl State {
     }
 
     /// Schedules a command to be executed in the future.
-    pub fn schedule_command(&mut self, player: PlayerId, command: Command) {
-        let ticks = match &command {
-            Command::MoveForward => 7,
-            Command::TurnLeft => 7,
-            Command::TurnRight => 7,
-            Command::LookAround => 7,
-            Command::Inventory => 1,
-            Command::PickUpObject(_) => 7,
-            Command::DropObject(_) => 7,
-            Command::KnockPlayer => 7,
-            Command::Broadcast(_) => 7,
-            Command::Evolve => 300,
-            Command::LayAnEgg => 42,
-            Command::AvailableTeamSlots => 0,
-        };
-
-        self.commands.push(ScheduledCommand {
-            player,
-            command,
-            remaining_ticks: ticks,
-        });
+    ///
+    /// # Returns
+    ///
+    /// This function returns whether the function could actually be scheduled.
+    pub fn schedule_command(&mut self, player: PlayerId, command: Command) -> bool {
+        self.player_mut(player)
+            .commands
+            .try_push(ScheduledCommand {
+                remaining_ticks: command.ticks(),
+                command,
+            })
+            .is_ok()
     }
 
     /// Notifies the state that a whole tick has passed.
+    #[allow(clippy::unwrap_used)]
     pub async fn tick(&mut self) -> ft::Result<()> {
-        let mut i = 0;
-        loop {
-            let Some(cmd) = self.commands.get_mut(i) else {
-                break Ok(());
-            };
+        for player in &mut self.players {
+            if let Some(command) = player.commands.first_mut() {
+                if command.remaining_ticks > 0 {
+                    command.remaining_ticks -= 1;
+                    continue;
+                }
 
-            if cmd.remaining_ticks > 0 {
-                cmd.remaining_ticks -= 1;
-                i += 1;
-                continue;
+                // This unwrap can ever fail because the case where there is no
+                // first element is handled above.
+                let cmd = player.commands.remove(0).unwrap();
+
+                // Execute the command.
+                ft_log::trace!(
+                    "executing command for #{}: {:?}",
+                    player.player_id,
+                    cmd.command,
+                );
+
+                player.sender.ok().await?;
             }
-
-            // We can't optimize this with a `swap_remove` because the order of
-            // commands must be preserved.
-            let cmd = self.commands.remove(i);
-
-            ft_log::trace!("executing command for #{}: {:?}", cmd.player, cmd.command);
-
-            self.player_mut(cmd.player).sender.ok().await?;
         }
+
+        Ok(())
     }
 
     /// Clears the whole state, deallocating all the resources it uses.
