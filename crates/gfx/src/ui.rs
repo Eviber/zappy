@@ -1,6 +1,7 @@
 use ratatui::{prelude::*, widgets::*};
 use crate::app::App;
 
+/// Renders the user interface.
 pub fn render(app: &mut App, f: &mut Frame) {
     let sizes = Layout::default()
         .direction(Direction::Vertical)
@@ -10,7 +11,6 @@ pub fn render(app: &mut App, f: &mut Frame) {
     let block = Block::default();
     f.render_widget(block, sizes[0]);
 
-    // Titles for the tabs
     let titles = vec![
         Line::from(Span::styled("Map", Style::default().fg(Color::Red))),
         Line::from(Span::styled("Admin", Style::default().fg(Color::Red))),
@@ -24,21 +24,19 @@ pub fn render(app: &mut App, f: &mut Frame) {
         .highlight_style(Style::default().fg(Color::White));
     f.render_widget(tabs, sizes[0]);
 
-    // Match the selected tab and render the corresponding content
     match app.active_tab {
         0 => render_map_tab(app, f, sizes[1]),
         1 => render_admin_tab(app, f, sizes[1]),
         2 => render_options_tab(app, f, sizes[1]),
-        _ => {}  // It's always a good practice to handle the default case
+        _ => {}
     }
     if let Some(popup) = &app.popup {
         render_popup(popup.selected, f);
     }
 }
 
-
+/// Renders a grid of cells
 fn render_map_tab(app: &mut App, f: &mut Frame, area: Rect) {
-    // Calculate column width, assuming all columns are the same width for simplicity
     let column_width = (area.width / app.grid[0].len() as u16).max(1); // Ensure at least 1
     let constraints: Vec<Constraint> = app.grid[0]
         .iter()
@@ -46,7 +44,6 @@ fn render_map_tab(app: &mut App, f: &mut Frame, area: Rect) {
         .collect();
 
     for (i, row) in app.grid.iter().enumerate() {
-        // Calculate the row height, assuming all rows are the same height for simplicity
         let row_height = (area.height / app.grid.len() as u16).max(1); // Ensure at least 1
         let row_area = Rect {
             x: area.x,
@@ -75,20 +72,23 @@ fn render_map_tab(app: &mut App, f: &mut Frame, area: Rect) {
     }
 }
 
-fn render_admin_tab(app: &mut App, f: &mut Frame, area: Rect) {
+/// Renders a placeholder for the admin tab
+fn render_admin_tab(_app: &mut App, f: &mut Frame, area: Rect) {
     // Example code: render a placeholder for the admin panel
     let paragraph = Paragraph::new("Admin content here")
         .block(Block::default().title("Admin").borders(Borders::ALL));
     f.render_widget(paragraph, area);
 }
 
-fn render_options_tab(app: &mut App, f: &mut Frame, area: Rect) {
+/// Renders a placeholder for the options tab
+fn render_options_tab(_app: &mut App, f: &mut Frame, area: Rect) {
     // Example code: render a placeholder for the options
     let paragraph = Paragraph::new("Options content here")
         .block(Block::default().title("Options").borders(Borders::ALL));
     f.render_widget(paragraph, area);
 }
 
+/// Renders a popup for command selection
 fn render_popup(popup_select: usize, f: &mut Frame) {
     let block = Block::default().title("Popup").borders(Borders::ALL);
     let area = centered_rect(20, 20, f.size());
@@ -106,9 +106,7 @@ fn render_popup(popup_select: usize, f: &mut Frame) {
             "Command 3",
             Style::default().fg(if popup_select == 3 { Color::Red } else { Color::White }),
         )),
-    ]).highlight_style(Style::default().add_modifier(if popup_select == 1 { Modifier::BOLD } else { Modifier::empty() }))
-        .highlight_style(Style::default().add_modifier(if popup_select == 2 { Modifier::BOLD } else { Modifier::empty() }))
-        .highlight_style(Style::default().add_modifier(if popup_select == 3 { Modifier::BOLD } else { Modifier::empty() }));
+    ]);
 
 
     let listarea = area.inner(&Margin {
@@ -119,6 +117,7 @@ fn render_popup(popup_select: usize, f: &mut Frame) {
     f.render_widget(block, area);
 }
 
+/// Returns a [`Rect`] centered in the given [`Rect`] with the given percentage size.
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
