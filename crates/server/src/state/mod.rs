@@ -235,6 +235,10 @@ impl State {
 
             // This unwrap can ever fail because the case where there is no
             // first element is handled above.
+            // Also, we can't optimize this with a swap_remove because the
+            // order in which commands are inserted matters. Maybe we can use
+            // a VecDeque instead, but that would be vastly overkill for those
+            // 10 poor elements.
             let cmd = player.commands.remove(0).unwrap();
 
             // Execute the command.
