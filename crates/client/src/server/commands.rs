@@ -2,7 +2,7 @@
 use std::fmt::Display;
 use std::str::FromStr;
 
-use super::errors::InvalidResponse;
+use super::errors::InvalidMsg;
 
 #[allow(dead_code)]
 /// Enum representing a command that can be sent to the server.
@@ -52,6 +52,64 @@ impl Display for Command<'_> {
     }
 }
 
+/// Enum representing a message from the server.
+#[derive(Debug, Clone)]
+pub enum Msg {
+    /// A notification from the server.
+    Notif(Notif),
+    /// A message from the server.
+    Response(Response),
+}
+
+impl Display for Msg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Msg::Notif(notif) => write!(f, "[{}]", notif),
+            Msg::Response(response) => write!(f, "< {}", response),
+        }
+    }
+}
+
+impl FromStr for Msg {
+    type Err = InvalidMsg;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse::<Notif>()
+            .map(Msg::Notif)
+            .or_else(|_| s.parse::<Response>().map(Msg::Response))
+    }
+}
+
+/// Enum representing a notification from the server.
+#[derive(Debug, Clone)]
+pub enum Notif {
+    /// Acknowledgement of an incantation.
+    Elevating,
+    /// The player has died.
+    Dead,
+}
+
+impl Display for Notif {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Notif::Elevating => write!(f, "elevation en cours"),
+            Notif::Dead => write!(f, "mort"),
+        }
+    }
+}
+
+impl FromStr for Notif {
+    type Err = InvalidMsg;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "elevation en cours" => Ok(Notif::Elevating),
+            "mort" => Ok(Notif::Dead),
+            _ => Err(InvalidMsg::ParsingError),
+        }
+    }
+}
+
 /// Enum representing a response from the server.
 #[derive(Debug, Clone)]
 pub enum Response {
@@ -63,14 +121,10 @@ pub enum Response {
     Seen(Vec<Vec<Object>>),
     /// Inventory.
     Inventory(Vec<(Object, u8)>), // TODO: use a HashMap instead?
-    /// Acknowledgement of an incantation.
-    Elevating,
     /// The level of the player after an incantation.
     Elevated(u8),
     /// The number of free slots in the team.
     FreeSlots(u8),
-    /// The player has died.
-    Dead,
 }
 
 impl Display for Response {
@@ -103,26 +157,22 @@ impl Display for Response {
                 }
                 write!(f, "}}")
             }
-            Response::Elevating => write!(f, "elevation en cours"),
             Response::Elevated(level) => write!(f, "niveau actuel : {}", level),
             Response::FreeSlots(slots) => write!(f, "{}", slots),
-            Response::Dead => write!(f, "mort"),
         }
     }
 }
 
-use Response::{Dead, Elevated, Elevating, FreeSlots, Inventory, Ko, Seen};
+use Response::{Elevated, FreeSlots, Inventory, Ko, Seen};
 
 impl FromStr for Response {
-    type Err = InvalidResponse;
+    type Err = InvalidMsg;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let lvl = "niveau actuel : ";
         match s {
             "ok" => Ok(Response::Ok),
             "ko" => Ok(Ko),
-            "mort" => Ok(Dead),
-            "elevation en cours" => Ok(Elevating),
             s if s.starts_with(lvl) => Ok(Elevated(s[lvl.len()..].parse()?)),
             // s if let Ok(n) = s.parse() => Ok(FreeSlots(n)), // unstable :(
             s if s.parse::<u8>().is_ok() => Ok(FreeSlots(s.parse()?)),
@@ -143,13 +193,13 @@ impl FromStr for Response {
                     parse_seen(list)
                 }
             }
-            _ => Err(InvalidResponse::ParsingError),
+            _ => Err(InvalidMsg::ParsingError),
         }
     }
 }
 
 /// Tries to parse an inventory from a list of objects.
-fn parse_inventory<'a, I>(list: I) -> Result<Response, InvalidResponse>
+fn parse_inventory<'a, I>(list: I) -> Result<Response, InvalidMsg>
 where
     I: Iterator<Item = &'a str>,
 {
@@ -161,14 +211,14 @@ where
             .next()
             .unwrap_or("")
             .parse()
-            .map_err(|_| InvalidResponse::ParsingError)?;
+            .map_err(|_| InvalidMsg::ParsingError)?;
         inventory.push((obj, n));
     }
     Ok(Inventory(inventory))
 }
 
 /// Tries to parse a list of objects seen by the player.
-fn parse_seen<'a, I>(list: I) -> Result<Response, InvalidResponse>
+fn parse_seen<'a, I>(list: I) -> Result<Response, InvalidMsg>
 where
     I: Iterator<Item = &'a str>,
 {
@@ -220,7 +270,7 @@ impl Display for Object {
 }
 
 impl FromStr for Object {
-    type Err = InvalidResponse;
+    type Err = InvalidMsg;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -232,7 +282,7 @@ impl FromStr for Object {
             "phiras" => Ok(Object::Phiras),
             "thystame" => Ok(Object::Thystame),
             "joueur" => Ok(Object::Player),
-            _ => Err(InvalidResponse::ParsingError),
+            _ => Err(InvalidMsg::ParsingError),
         }
     }
 }

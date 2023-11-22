@@ -6,7 +6,7 @@ pub mod commands;
 mod errors;
 
 pub use commands::Command;
-use errors::InvalidResponse::MissingValue;
+use errors::InvalidMsg::MissingValue;
 pub use errors::Result;
 
 use crate::args::Args;
@@ -14,7 +14,7 @@ use clap::Parser;
 use io::{Read, Write};
 use std::{io, net::TcpStream};
 
-use self::commands::Response;
+use self::commands::Msg;
 
 /// Abstraction over the server.
 #[allow(dead_code)]
@@ -53,15 +53,15 @@ impl Server {
     }
 
     /// Sends a command to the server.
-    pub fn send_command(&mut self, command: Command) -> Result<Response> {
+    pub fn send_command(&mut self, command: Command) -> Result<()> {
         print!("> {}...", command);
         std::io::stdout().flush()?;
         self.stream.write_fmt(format_args!("{}\n", command))?;
-        self.receive()
+        Ok(())
     }
 
     /// Reads a message from the server.
-    pub fn receive(&mut self) -> Result<Response> {
+    pub fn receive(&mut self) -> Result<Msg> {
         let received = read_from_stream(&mut self.stream)?.trim().parse()?;
         println!("in: {}", received);
         Ok(received)

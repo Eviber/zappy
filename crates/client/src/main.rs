@@ -8,6 +8,7 @@ mod args;
 /// Server communication.
 mod server;
 
+use server::commands::Msg;
 use server::{Command, Result, Server};
 
 /// Generate a random 64-bit integer.
@@ -41,5 +42,6 @@ fn main() -> Result<()> {
     let mut server = Server::new()?;
     loop {
         server.send_command(random_command())?;
+        while let Msg::Notif(_) = server.receive()? {}
     }
 }
