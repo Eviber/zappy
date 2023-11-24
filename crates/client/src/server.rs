@@ -4,7 +4,6 @@ pub mod commands;
 mod errors;
 
 pub use commands::Command;
-use errors::InvalidMsg::MissingValue;
 pub use errors::Result;
 
 use crate::args::Args;
@@ -24,30 +23,35 @@ pub struct Server {
     width: usize,
     /// The height of the map.
     height: usize,
+    /// Read buffer.
+    buf: String,
 }
 
 impl Server {
     /// Creates a new server instance and connects to it.
     pub fn new() -> Result<Self> {
         let args = Args::parse();
-        let mut stream = TcpStream::connect((args.host.as_str(), args.port))?;
-
-        let _received = read_from_stream(&mut stream)?; // "BIENVENUE\n"
-
-        stream.write_fmt(format_args!("{}\n", args.name))?;
-
-        let received = read_from_stream(&mut stream)?;
-        let mut info = received.split_whitespace().map(|s| s.parse());
-        let slots = info.next().ok_or(MissingValue)??;
-        let width: usize = info.next().ok_or(MissingValue)??;
-        let height: usize = info.next().ok_or(MissingValue)??;
-        println!("slots: {}, width: {}, height: {}", slots, width, height);
-
-        Ok(Self {
+        let stream = TcpStream::connect((args.host.as_str(), args.port))?;
+        let mut self_ = Self {
             stream,
-            width,
-            height,
-        })
+            width: 0,
+            height: 0,
+            buf: String::new(),
+        };
+
+        let _received = self_.get_line()?;
+
+        self_.stream.write_fmt(format_args!("{}\n", args.name))?;
+
+        let slots: usize = self_.get_line()?.parse()?;
+        self_.width = self_.get_line()?.parse()?;
+        self_.height = self_.get_line()?.parse()?;
+        println!(
+            "slots: {}, width: {}, height: {}",
+            slots, self_.width, self_.height
+        );
+
+        Ok(self_)
     }
 
     /// Sends a command to the server.
@@ -60,20 +64,24 @@ impl Server {
 
     /// Reads a message from the server.
     pub fn receive(&mut self) -> Result<Msg> {
-        let received = read_from_stream(&mut self.stream)?.trim().parse()?;
+        let received = self.get_line()?.parse()?;
         println!("in: {}", received);
         Ok(received)
     }
-}
 
-/// Reads a message from a stream.
-/// Returns when the message ends with a newline.
-fn read_from_stream(stream: &mut TcpStream) -> io::Result<String> {
-    let mut res = String::new();
-    while !res.ends_with('\n') {
+    /// Returns a line read from the server.
+    fn get_line(&mut self) -> Result<String> {
         let mut buf = [0; 1024];
-        let len = stream.read(&mut buf)?;
-        res.push_str(&String::from_utf8_lossy(&buf[..len]));
+
+        let newline = loop {
+            if let Some(newline) = self.buf.find('\n') {
+                break newline;
+            }
+            let len = self.stream.read(&mut buf)?;
+            self.buf.push_str(&String::from_utf8_lossy(&buf[..len]));
+        };
+        let line = self.buf.drain(..newline).collect();
+        self.buf.drain(..1);
+        Ok(line)
     }
-    Ok(res)
 }
