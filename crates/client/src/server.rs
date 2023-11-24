@@ -1,8 +1,6 @@
-/// Commands module
+/// Server abstraction module.
 pub mod commands;
-/// Server abstraction module
 
-/// Errors module
 mod errors;
 
 pub use commands::Command;

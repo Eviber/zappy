@@ -1,7 +1,7 @@
+/// Module for the command line arguments.
 use clap::Parser;
 
-/// Represents the arguments of the program.
-/// Parsing is done using the `clap` crate.
+/// A Zappy client.
 #[derive(Parser, Debug)]
 #[clap(disable_help_flag = true, arg_required_else_help = true)]
 pub struct Args {
