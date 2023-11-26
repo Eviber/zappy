@@ -3,9 +3,13 @@ use crate::app::App;
 
 /// Renders the user interface.
 pub fn render(app: &mut App, f: &mut Frame) {
+    let top_constraint = Constraint::Percentage(8);
+    let middle_constraint = Constraint::Length(30);
+    let bottom_constraint = Constraint::Min(0);
+
     let sizes = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(3), Constraint::Min(0)])
+        .constraints([top_constraint, middle_constraint, bottom_constraint])
         .split(f.size());
 
     let block = Block::default();
@@ -33,6 +37,7 @@ pub fn render(app: &mut App, f: &mut Frame) {
     if let Some(popup) = &app.popup {
         render_popup(popup.selected, f);
     }
+    render_logs(app, f, sizes[2]);
 }
 
 /// Renders a grid of cells
@@ -72,6 +77,13 @@ fn render_map_tab(app: &mut App, f: &mut Frame, area: Rect) {
     }
 }
 
+fn render_logs(app: &mut App, f: &mut Frame, area: Rect) {
+    let paragraph = Paragraph::new(app.logs.join("\n"))
+        .block(Block::default().title("Logs").borders(Borders::ALL));
+
+    f.render_widget(paragraph, area);
+}
+
 /// Renders a placeholder for the admin tab
 fn render_admin_tab(_app: &mut App, f: &mut Frame, area: Rect) {
     // Example code: render a placeholder for the admin panel
@@ -109,11 +121,11 @@ fn render_popup(popup_select: usize, f: &mut Frame) {
     ]);
 
 
-    let listarea = area.inner(&Margin {
+    let list_area = area.inner(&Margin {
         vertical: 2,
         horizontal: 2,
     });
-    f.render_widget(list, listarea);
+    f.render_widget(list, list_area);
     f.render_widget(block, area);
 }
 
