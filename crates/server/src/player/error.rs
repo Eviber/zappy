@@ -32,7 +32,7 @@ impl fmt::Display for PlayerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             PlayerError::UnknownTeam(ref team_name) => {
-                write!(f, "unknown team `{}`", team_name)
+                write!(f, "unknown team `{}`", team_name.escape_debug())
             }
             PlayerError::TeamFull { ref name, id } => {
                 write!(f, "team `{}` (#{}) is full", name, id)
@@ -44,14 +44,18 @@ impl fmt::Display for PlayerError {
                 write!(
                     f,
                     "unknown command `{}`",
-                    core::str::from_utf8(cmd_name).unwrap_or("<invalid UTF-8>")
+                    core::str::from_utf8(cmd_name)
+                        .unwrap_or("<invalid UTF-8>")
+                        .escape_debug()
                 )
             }
             PlayerError::UnknownObjectClass(ref obj_class) => {
                 write!(
                     f,
                     "unknown object class `{}`",
-                    core::str::from_utf8(obj_class).unwrap_or("<invalid UTF-8>")
+                    core::str::from_utf8(obj_class)
+                        .unwrap_or("<invalid UTF-8>")
+                        .escape_debug()
                 )
             }
         }
