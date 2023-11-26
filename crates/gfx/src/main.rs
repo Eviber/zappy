@@ -31,6 +31,22 @@ fn main() -> Result<()> {
     let mut tui = Tui::new(terminal, events);
     tui.enter()?;
 
+    let logs = vec![
+        "This is a log message".to_string(),
+        "This is another log message".to_string(),
+        "This is a third log message".to_string(),
+        "This is a fourth log message".to_string(),
+        "This is a fifth log message".to_string(),
+        "This is a sixth log message".to_string(),
+        "This is a seventh log message".to_string(),
+        "This is a eighth log message".to_string(),
+        "This is a ninth log message".to_string(),
+        "This is a tenth log message".to_string(),
+        "This is a eleventh log message".to_string(),
+        "This is a twelfth log message".to_string(),
+    ];
+
+    app.logs = logs;
     // Start the main loop.
     while !app.should_quit {
         // Render the user interface.
