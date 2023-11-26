@@ -4,6 +4,7 @@ pub mod commands;
 mod errors;
 
 pub use commands::Command;
+use errors::InvalidMsg::MissingValue;
 pub use errors::Result;
 
 use crate::args::Args;
@@ -44,8 +45,10 @@ impl Server {
         self_.stream.write_fmt(format_args!("{}\n", args.name))?;
 
         let slots: usize = self_.get_line()?.parse()?;
-        self_.width = self_.get_line()?.parse()?;
-        self_.height = self_.get_line()?.parse()?;
+        let line = self_.get_line()?;
+        let mut dimensions = line.split_whitespace();
+        self_.width = dimensions.next().ok_or(MissingValue)?.parse()?;
+        self_.height = dimensions.next().ok_or(MissingValue)?.parse()?;
         println!(
             "slots: {}, width: {}, height: {}",
             slots, self_.width, self_.height
