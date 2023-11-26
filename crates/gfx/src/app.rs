@@ -6,6 +6,7 @@ pub struct App {
     pub grid: Vec<Vec<char>>,
     pub selected_position: (usize, usize),
     pub popup: Option<PopupState>,
+    pub logs: Vec<String>,
 }
 
 #[derive(Debug, Default)]
@@ -45,6 +46,8 @@ impl From<PopupCommand> for PopupState {
 
 impl App {
 
+
+    /// Constructs a new instance of [`App`].
     pub fn new() -> App {
         let grid_size = 10; // Example size
         let grid = vec![vec![' '; grid_size]; grid_size];
@@ -53,7 +56,7 @@ impl App {
             grid,
             ..Default::default()
         }
-    }    /// Constructs a new instance of [`App`].
+    }
 
     /// Handles the tick event of the terminal.
     pub fn tick(&self) {}

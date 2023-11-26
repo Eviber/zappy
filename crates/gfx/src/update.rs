@@ -17,13 +17,13 @@ pub fn update(app: &mut App, key_event: KeyEvent) {
         },
         KeyCode::Right => {
             // Move the cursor to the right
-            if let None = app.popup {
+            if app.popup.is_none() {
                 app.selected_position.1 = (app.selected_position.1 + 1) % app.grid[0].len();
             }
         },
         KeyCode::Left => {
             // Move the cursor to the left
-            if let None = app.popup {
+            if app.popup.is_none() {
                 app.selected_position.1 = if app.selected_position.1 > 0 {
                     app.selected_position.1 - 1
                 } else {
@@ -61,7 +61,7 @@ pub fn update(app: &mut App, key_event: KeyEvent) {
             if let Some(popup) = &app.popup {
                 match popup.command {
                     PopupCommand::Command1 => {
-                        // Do something
+                        app.logs.push("Command 1 executed".to_string());
                         app.popup = None;
                     },
                     PopupCommand::Command2 => {
@@ -79,6 +79,31 @@ pub fn update(app: &mut App, key_event: KeyEvent) {
                 app.popup = Some(PopupCommand::None.into());
             }
         }
+        KeyCode::Char('+') => {
+            // Add a new row
+            if key_event.modifiers == KeyModifiers::SHIFT {
+                app.grid.push(vec![' '; app.grid[0].len()]);
+            }
+            else {
+                // Add a new column
+                for row in &mut app.grid {
+                    row.push(' ');
+                }
+            }
+        }
+        KeyCode::Char('-') => {
+            // Remove a row
+            if key_event.modifiers == KeyModifiers::SHIFT {
+                app.grid.pop();
+            }
+            else {
+                // Remove a column
+                for row in &mut app.grid {
+                    row.pop();
+                }
+            }
+        }
+
         _ => {}
     }
 }
