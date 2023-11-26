@@ -5,6 +5,7 @@
 #![deny(clippy::unwrap_used, unsafe_op_in_unsafe_fn)]
 #![warn(missing_docs, clippy::must_use_candidate)]
 
+use core::fmt::Write;
 extern crate alloc;
 extern crate unwinding;
 
@@ -219,6 +220,11 @@ async fn try_run_ticks(freq: f32) -> ft::Result<()> {
             send_buf.clear();
             match response {
                 Response::Ok => ft_async::futures::write_all(*conn, b"ok\n").await?,
+                Response::ConnectNbr(nbr) => {
+                    writeln!(send_buf, "{}", nbr)
+                        .expect("writing a number to a string should never fail");
+                    ft_async::futures::write_all(*conn, send_buf.as_bytes()).await?
+                }
             }
         }
     }

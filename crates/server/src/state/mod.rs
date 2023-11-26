@@ -63,12 +63,22 @@ impl Command {
             Command::AvailableTeamSlots => 0,
         }
     }
+
+    /// Executes the command, returning the response that must be sent back to the player.
+    #[allow(dead_code)]
+    pub fn execute(&self, state: &mut State, player: PlayerId) -> Response {
+        match self {
+            Command::AvailableTeamSlots => Response::ConnectNbr(state.available_slots_for(player)),
+            _ => Response::Ok,
+        }
+    }
 }
 
 /// A response that can be sent back to a player.
 pub enum Response {
     /// The string `"ok"`.
     Ok,
+    ConnectNbr(u32),
 }
 
 /// A command that has been scheduled to be executed in the future.
@@ -260,7 +270,16 @@ impl State {
                 cmd.command,
             );
 
-            responses.push((player.conn, Response::Ok));
+            // I wish we could use a method on `Command` or `State` here, but
+            // we can't borrow `self` as it's already borrowed mutably.
+            // There's probably a way but I don't see it.
+            let response = match cmd.command {
+                Command::AvailableTeamSlots => {
+                    Response::ConnectNbr(self.teams[player.team_id].available_slots)
+                }
+                _ => Response::Ok,
+            };
+            responses.push((player.conn, response));
         }
     }
 
