@@ -40,6 +40,6 @@ fn main() -> Result<()> {
     let mut server = Server::new()?;
     loop {
         server.send_command(random_command())?;
-        while let Msg::Notif(_) = server.receive()? {}
+        // while let Msg::Notif(_) = server.receive()? {}
     }
 }

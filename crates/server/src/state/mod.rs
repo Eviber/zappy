@@ -7,7 +7,7 @@ use ft::collections::ArrayVec;
 
 use crate::args::Args;
 use crate::client::Client;
-use crate::player::{PlayerError, PlayerSender};
+use crate::player::PlayerError;
 
 mod world;
 
@@ -65,6 +65,12 @@ impl Command {
     }
 }
 
+/// A response that can be sent back to a player.
+pub enum Response {
+    /// The string `"ok"`.
+    Ok,
+}
+
 /// A command that has been scheduled to be executed in the future.
 #[derive(Debug)]
 pub struct ScheduledCommand {
@@ -91,8 +97,8 @@ pub struct PlayerState {
     player_id: PlayerId,
     /// The ID of the team the player is in.
     team_id: TeamId,
-    /// The sending half of the channel used to send messages to the player.
-    sender: PlayerSender,
+    /// The connection that was open with the player.
+    conn: ft::Fd,
     /// The commands that have been buffered for the player.
     commands: ArrayVec<ScheduledCommand, 10>,
 }
@@ -177,7 +183,7 @@ impl State {
         self.players.push(Box::new(PlayerState {
             player_id: client.id(),
             team_id,
-            sender: PlayerSender::new(client.fd()),
+            conn: client.fd(),
             commands: ArrayVec::new(),
         }));
 
@@ -222,8 +228,13 @@ impl State {
     }
 
     /// Notifies the state that a whole tick has passed.
+    ///
+    /// # Arguments
+    ///
+    /// - `responses` - a list of responses that must be sent to their associated file
+    ///   descriptiors.
     #[allow(clippy::unwrap_used)]
-    pub async fn tick(&mut self) -> ft::Result<()> {
+    pub fn tick(&mut self, responses: &mut Vec<(ft::Fd, Response)>) {
         for player in &mut self.players {
             let Some(command) = player.commands.first_mut() else {
                 continue;
@@ -249,10 +260,8 @@ impl State {
                 cmd.command,
             );
 
-            player.sender.ok().await?;
+            responses.push((player.conn, Response::Ok));
         }
-
-        Ok(())
     }
 
     /// Clears the whole state, deallocating all the resources it uses.
@@ -283,6 +292,7 @@ pub fn set_state(state: State) {
 ///
 /// This function panics if the global state has not been initialized.
 #[inline]
+#[track_caller]
 pub fn state() -> ft::sync::mutex::Guard<'static, State, ft::sync::mutex::NoBlockLock> {
     STATE
         .get()

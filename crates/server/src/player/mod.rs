@@ -1,13 +1,11 @@
-mod error;
-mod sender;
-
 use alloc::format;
 
 use crate::client::{Client, ClientError};
 use crate::state::{state, Command, ObjectClass, PlayerId, TeamId};
 
+mod error;
+
 pub use self::error::*;
-pub use self::sender::*;
 
 /// A guard that makes a player leave their team when dropped.
 struct PlayerGuard(PlayerId);
