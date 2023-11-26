@@ -60,34 +60,22 @@ pub struct ReadLine<'a> {
     buf: &'a mut ReadBuffer,
 }
 
-impl<'a> Future for ReadLine<'a> {
-    type Output = ft::Result<&'a [u8]>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let fd = self.fd;
-
-        // Make sure that the buffer has enough space to read at least 64 bytes.
-        match self.buf.reserve(64) {
-            Ok(()) => (),
-            Err(err) => return Poll::Ready(Err(err.into())),
-        }
-
-        // Try to read from the file descriptor.
-        let added = match self.buf.fill_with_fd(fd) {
-            Ok([]) => return Poll::Ready(Err(ft::Errno::CONNECTION_RESET)),
-            Ok(added) => added,
-            Err(err) => return Poll::Ready(Err(err)),
-        };
+impl<'a> ReadLine<'a> {
+    /// Checks whether the buffer contains a complete line.
+    ///
+    /// If so, this function takes care of consuming the line
+    /// to ensure that it won't be returned again.
+    pub fn check_line(&mut self) -> Option<&'a [u8]> {
+        let pending = self.buf.pending();
 
         // Try to find the index of the delimiter.
-        let Some(mut index) = added.iter().position(|&byte| byte == b'\n') else {
-            EXECUTOR.wake_me_up_on_read(self.fd, cx.waker().clone());
-            return Poll::Pending;
+        let Some(mut index) = pending.iter().position(|&byte| byte == b'\n') else {
+            return None;
         };
 
         // Convert the index into the index of the delimiter *within* the pending
         // buffer; not just within the added bytes.
-        index += added
+        index += pending
             .len()
             .wrapping_neg()
             .wrapping_add(self.buf.pending().len());
@@ -100,7 +88,41 @@ impl<'a> Future for ReadLine<'a> {
         unsafe {
             let consumed = self.buf.pending().as_ptr();
             self.buf.consume_unchecked(index + 1);
-            Poll::Ready(Ok(core::slice::from_raw_parts(consumed, index)))
+            Some(core::slice::from_raw_parts(consumed, index))
+        }
+    }
+}
+
+impl<'a> Future for ReadLine<'a> {
+    type Output = ft::Result<&'a [u8]>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let fd = self.fd;
+
+        // Check if the buffer doesn't already contain a line.
+        if let Some(line) = self.check_line() {
+            return Poll::Ready(Ok(line));
+        }
+
+        // Make sure that the buffer has enough space to read at least 64 bytes.
+        match self.buf.reserve(64) {
+            Ok(()) => (),
+            Err(err) => return Poll::Ready(Err(err.into())),
+        }
+
+        // Try to read from the file descriptor.
+        match self.buf.fill_with_fd(fd) {
+            Ok([]) => return Poll::Ready(Err(ft::Errno::CONNECTION_RESET)),
+            Ok(_) => (),
+            Err(err) => return Poll::Ready(Err(err)),
+        };
+
+        match self.check_line() {
+            Some(line) => Poll::Ready(Ok(line)),
+            None => {
+                EXECUTOR.wake_me_up_on_read(fd, cx.waker().clone());
+                Poll::Pending
+            }
         }
     }
 }
