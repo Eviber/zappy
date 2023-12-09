@@ -78,6 +78,7 @@ impl Command {
 pub enum Response {
     /// The string `"ok"`.
     Ok,
+    /// The number of available slots in the team.
     ConnectNbr(u32),
 }
 
