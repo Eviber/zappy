@@ -3,9 +3,11 @@
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
+use ft::collections::ArrayVec;
+
 use crate::args::Args;
 use crate::client::Client;
-use crate::player::{PlayerError, PlayerSender};
+use crate::player::PlayerError;
 
 mod world;
 
@@ -43,14 +45,39 @@ pub enum Command {
     AvailableTeamSlots,
 }
 
-/// A command scheduled to be executed in the future.
-struct ScheduledCommand {
-    /// The player that scheduled the command.
-    player: PlayerId,
-    /// The command to execute.
-    command: Command,
-    /// The remaining number of ticks before the command is executed.
-    remaining_ticks: u32,
+impl Command {
+    /// Returns the number of ticks that this command takes to execute.
+    pub fn ticks(&self) -> u32 {
+        match self {
+            Command::MoveForward => 7,
+            Command::TurnLeft => 7,
+            Command::TurnRight => 7,
+            Command::LookAround => 7,
+            Command::Inventory => 1,
+            Command::PickUpObject(_) => 7,
+            Command::DropObject(_) => 7,
+            Command::KnockPlayer => 7,
+            Command::Broadcast(_) => 7,
+            Command::Evolve => 300,
+            Command::LayAnEgg => 42,
+            Command::AvailableTeamSlots => 0,
+        }
+    }
+}
+
+/// A response that can be sent back to a player.
+pub enum Response {
+    /// The string `"ok"`.
+    Ok,
+}
+
+/// A command that has been scheduled to be executed in the future.
+#[derive(Debug)]
+pub struct ScheduledCommand {
+    /// The command that has been scheduled.
+    pub command: Command,
+    /// The number of ticks remaining before the command is executed.
+    pub remaining_ticks: u32,
 }
 
 /// Information about the state of a team.
@@ -70,20 +97,37 @@ pub struct PlayerState {
     player_id: PlayerId,
     /// The ID of the team the player is in.
     team_id: TeamId,
-    /// The sending half of the channel used to send messages to the player.
-    sender: PlayerSender,
+    /// The connection that was open with the player.
+    conn: ft::Fd,
+    /// The commands that have been buffered for the player.
+    commands: ArrayVec<ScheduledCommand, 10>,
+}
+
+impl PlayerState {
+    /// Schedules a command for this player.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the command has been scheduled, `false` if the buffer is full.
+    pub fn schedule_command(&mut self, command: Command) -> bool {
+        self.commands
+            .try_push(ScheduledCommand {
+                remaining_ticks: command.ticks(),
+                command,
+            })
+            .is_ok()
+    }
 }
 
 /// The global state of the server, responsible for managing the clients and the game.
+#[allow(clippy::vec_box)] // `PlayerState` is a huge struct, copying it around is not a good idea.
 pub struct State {
     /// Information about the teams available in the current game.
     teams: Box<[Team]>,
     /// The list of players currently connected to the server.
-    players: Vec<PlayerState>,
+    players: Vec<Box<PlayerState>>,
     /// The current state of the world.
     world: World,
-    /// The commands that have been scheduled to be executed in the future.
-    commands: Vec<ScheduledCommand>,
 }
 
 impl State {
@@ -104,7 +148,6 @@ impl State {
             teams,
             players: Vec::new(),
             world,
-            commands: Vec::new(),
         }
     }
 
@@ -137,11 +180,12 @@ impl State {
 
         team.available_slots -= 1;
 
-        self.players.push(PlayerState {
+        self.players.push(Box::new(PlayerState {
             player_id: client.id(),
             team_id,
-            sender: PlayerSender::new(client.fd()),
-        });
+            conn: client.fd(),
+            commands: ArrayVec::new(),
+        }));
 
         Ok(client.id())
     }
@@ -153,7 +197,7 @@ impl State {
     }
 
     /// Returns the state of the player with the provided ID.
-    fn player_mut(&mut self, player: PlayerId) -> &mut PlayerState {
+    pub fn player_mut(&mut self, player: PlayerId) -> &mut PlayerState {
         self.player_index_by_id(player)
             .and_then(|i| self.players.get_mut(i))
             .expect("no player with the provided ID")
@@ -169,9 +213,6 @@ impl State {
 
         let player = self.players.remove(index);
         self.teams[player.team_id].available_slots += 1;
-
-        // Remove commands scheduled by the player.
-        self.commands.retain(|cmd| cmd.player != player.player_id);
     }
 
     /// Returns the number of available slots in the specified team.
@@ -186,51 +227,40 @@ impl State {
         &self.world
     }
 
-    /// Schedules a command to be executed in the future.
-    pub fn schedule_command(&mut self, player: PlayerId, command: Command) {
-        let ticks = match &command {
-            Command::MoveForward => 7,
-            Command::TurnLeft => 7,
-            Command::TurnRight => 7,
-            Command::LookAround => 7,
-            Command::Inventory => 1,
-            Command::PickUpObject(_) => 7,
-            Command::DropObject(_) => 7,
-            Command::KnockPlayer => 7,
-            Command::Broadcast(_) => 7,
-            Command::Evolve => 300,
-            Command::LayAnEgg => 42,
-            Command::AvailableTeamSlots => 0,
-        };
-
-        self.commands.push(ScheduledCommand {
-            player,
-            command,
-            remaining_ticks: ticks,
-        });
-    }
-
     /// Notifies the state that a whole tick has passed.
-    pub async fn tick(&mut self) -> ft::Result<()> {
-        let mut i = 0;
-        loop {
-            let Some(cmd) = self.commands.get_mut(i) else {
-                break Ok(());
+    ///
+    /// # Arguments
+    ///
+    /// - `responses` - a list of responses that must be sent to their associated file
+    ///   descriptiors.
+    #[allow(clippy::unwrap_used)]
+    pub fn tick(&mut self, responses: &mut Vec<(ft::Fd, Response)>) {
+        for player in &mut self.players {
+            let Some(command) = player.commands.first_mut() else {
+                continue;
             };
 
-            if cmd.remaining_ticks > 0 {
-                cmd.remaining_ticks -= 1;
-                i += 1;
+            if command.remaining_ticks > 0 {
+                command.remaining_ticks -= 1;
                 continue;
             }
 
-            // We can't optimize this with a `swap_remove` because the order of
-            // commands must be preserved.
-            let cmd = self.commands.remove(i);
+            // This unwrap can ever fail because the case where there is no
+            // first element is handled above.
+            // Also, we can't optimize this with a swap_remove because the
+            // order in which commands are inserted matters. Maybe we can use
+            // a VecDeque instead, but that would be vastly overkill for those
+            // 10 poor elements.
+            let cmd = player.commands.remove(0).unwrap();
 
-            ft_log::trace!("executing command for #{}: {:?}", cmd.player, cmd.command);
+            // Execute the command.
+            ft_log::trace!(
+                "executing command for #{}: {:?}",
+                player.player_id,
+                cmd.command,
+            );
 
-            self.player_mut(cmd.player).sender.ok().await?;
+            responses.push((player.conn, Response::Ok));
         }
     }
 
@@ -262,6 +292,7 @@ pub fn set_state(state: State) {
 ///
 /// This function panics if the global state has not been initialized.
 #[inline]
+#[track_caller]
 pub fn state() -> ft::sync::mutex::Guard<'static, State, ft::sync::mutex::NoBlockLock> {
     STATE
         .get()

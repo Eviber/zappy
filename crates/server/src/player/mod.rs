@@ -1,18 +1,11 @@
-mod error;
-mod sender;
-
 use alloc::format;
 
-use crate::client::Client;
-use crate::client::ClientError;
-use crate::state::state;
-use crate::state::Command;
-use crate::state::ObjectClass;
-use crate::state::PlayerId;
-use crate::state::TeamId;
+use crate::client::{Client, ClientError};
+use crate::state::{state, Command, ObjectClass, PlayerId, TeamId};
+
+mod error;
 
 pub use self::error::*;
-pub use self::sender::*;
 
 /// A guard that makes a player leave their team when dropped.
 struct PlayerGuard(PlayerId);
@@ -60,7 +53,7 @@ pub async fn handle(mut client: Client, team_id: TeamId) -> Result<(), ClientErr
             _ => return Err(PlayerError::UnknownCommand(cmd_name.into()).into()),
         };
 
-        state().schedule_command(player_id, cmd);
+        state().player_mut(player_id).schedule_command(cmd);
     }
 }
 
