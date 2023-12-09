@@ -1,11 +1,18 @@
-use ratatui::{prelude::*, widgets::*};
+use crate::app::state::State;
 use crate::app::App;
+use ratatui::{prelude::*, widgets::*};
 
 /// Renders the user interface.
 pub fn render(app: &mut App, f: &mut Frame) {
     let top_constraint = Constraint::Percentage(8);
     let middle_constraint = Constraint::Length(30);
     let bottom_constraint = Constraint::Min(0);
+
+    let active_tab = match app.state {
+        State::Map { .. } => 0,
+        State::Admin => 1,
+        State::Options => 2,
+    };
 
     let sizes = Layout::default()
         .direction(Direction::Vertical)
@@ -23,33 +30,34 @@ pub fn render(app: &mut App, f: &mut Frame) {
 
     let tabs = Tabs::new(titles)
         .block(Block::default().borders(Borders::ALL))
-        .select(app.active_tab)
+        .select(active_tab)
         .style(Style::default().fg(Color::White))
         .highlight_style(Style::default().fg(Color::White));
     f.render_widget(tabs, sizes[0]);
 
-    match app.active_tab {
-        0 => render_map_tab(app, f, sizes[1]),
+    match active_tab {
+        0 => render_map_tab(&mut app.state, f, sizes[1]),
         1 => render_admin_tab(app, f, sizes[1]),
         2 => render_options_tab(app, f, sizes[1]),
         _ => {}
     }
-    if let Some(popup) = &app.popup {
-        render_popup(popup.selected, f);
+    if app.state.is_popup() {
+        render_popup(1, f);
     }
     render_logs(app, f, sizes[2]);
 }
 
 /// Renders a grid of cells
-fn render_map_tab(app: &mut App, f: &mut Frame, area: Rect) {
-    let column_width = (area.width / app.grid[0].len() as u16).max(1); // Ensure at least 1
-    let constraints: Vec<Constraint> = app.grid[0]
-        .iter()
+fn render_map_tab(state: &mut State, f: &mut Frame, area: Rect) {
+    let selected = state.selected_cell().unwrap_or((0, 0));
+    let map = state.map_mut().unwrap();
+    let column_width = (area.width / map.x_max as u16).max(1); // Ensure at least 1
+    let constraints: Vec<Constraint> = (0..map.x_max)
         .map(|_| Constraint::Length(column_width))
         .collect();
 
-    for (i, row) in app.grid.iter().enumerate() {
-        let row_height = (area.height / app.grid.len() as u16).max(1); // Ensure at least 1
+    for (i, row) in map.cells.iter().enumerate() {
+        let row_height = (area.height / map.y_max as u16).max(1); // Ensure at least 1
         let row_area = Rect {
             x: area.x,
             y: area.y + i as u16 * row_height,
@@ -59,15 +67,19 @@ fn render_map_tab(app: &mut App, f: &mut Frame, area: Rect) {
 
         let row_layout = Layout::default()
             .direction(Direction::Horizontal)
-    .constraints(constraints.clone())
+            .constraints(constraints.clone())
             .split(row_area);
 
-        for (j, &cell) in row.iter().enumerate() {
-            let selected = app.selected_position == (i, j);
+        for (j, _cell) in row.content.iter().enumerate() {
+            let selected = selected == (i, j);
             let cell_style = Style::default()
                 .fg(if selected { Color::Red } else { Color::White })
-                .add_modifier(if selected { Modifier::BOLD } else { Modifier::empty() });
-            let content = Paragraph::new(format!("{}", cell))
+                .add_modifier(if selected {
+                    Modifier::BOLD
+                } else {
+                    Modifier::empty()
+                });
+            let content = Paragraph::new(String::new())
                 .block(Block::default().borders(Borders::ALL))
                 .wrap(Wrap { trim: true })
                 .style(cell_style);
@@ -78,7 +90,14 @@ fn render_map_tab(app: &mut App, f: &mut Frame, area: Rect) {
 }
 
 fn render_logs(app: &mut App, f: &mut Frame, area: Rect) {
+    let vertical_scroll = match app.state {
+        State::Map {
+            vertical_scroll, ..
+        } => vertical_scroll,
+        _ => 0,
+    };
     let paragraph = Paragraph::new(app.logs.join("\n"))
+        .scroll((vertical_scroll as u16, 0))
         .block(Block::default().title("Logs").borders(Borders::ALL));
 
     f.render_widget(paragraph, area);
@@ -108,18 +127,29 @@ fn render_popup(popup_select: usize, f: &mut Frame) {
     let list = List::new(vec![
         ListItem::new(Span::styled(
             "Command 1",
-            Style::default().fg(if popup_select == 1 { Color::Red } else { Color::White }),
+            Style::default().fg(if popup_select == 1 {
+                Color::Red
+            } else {
+                Color::White
+            }),
         )),
         ListItem::new(Span::styled(
             "Command 2",
-            Style::default().fg(if popup_select == 2 { Color::Red } else { Color::White }),
+            Style::default().fg(if popup_select == 2 {
+                Color::Red
+            } else {
+                Color::White
+            }),
         )),
         ListItem::new(Span::styled(
             "Command 3",
-            Style::default().fg(if popup_select == 3 { Color::Red } else { Color::White }),
+            Style::default().fg(if popup_select == 3 {
+                Color::Red
+            } else {
+                Color::White
+            }),
         )),
     ]);
-
 
     let list_area = area.inner(&Margin {
         vertical: 2,

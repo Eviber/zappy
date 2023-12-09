@@ -13,6 +13,9 @@ pub mod tui;
 /// Application updater.
 pub mod update;
 
+/// Game logic.
+pub mod game_logic;
+
 use anyhow::Result;
 use app::App;
 use event::{Event, EventHandler};
