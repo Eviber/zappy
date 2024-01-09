@@ -10,7 +10,6 @@ extern crate unwinding;
 
 use alloc::string::String;
 use alloc::vec::Vec;
-use state::Response;
 
 use self::args::Args;
 use self::client::{Client, ClientError};
@@ -217,9 +216,7 @@ async fn try_run_ticks(freq: f32) -> ft::Result<()> {
         //     This might not be a big problem though.
         for (conn, response) in responses.iter() {
             send_buf.clear();
-            match response {
-                Response::Ok => ft_async::futures::write_all(*conn, b"ok\n").await?,
-            }
+            response.send_to(*conn, &mut send_buf).await?;
         }
     }
 }
