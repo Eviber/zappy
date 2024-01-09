@@ -5,13 +5,11 @@
 #![deny(clippy::unwrap_used, unsafe_op_in_unsafe_fn)]
 #![warn(missing_docs, clippy::must_use_candidate)]
 
-use core::fmt::Write;
 extern crate alloc;
 extern crate unwinding;
 
 use alloc::string::String;
 use alloc::vec::Vec;
-use state::Response;
 
 use self::args::Args;
 use self::client::{Client, ClientError};
@@ -218,14 +216,7 @@ async fn try_run_ticks(freq: f32) -> ft::Result<()> {
         //     This might not be a big problem though.
         for (conn, response) in responses.iter() {
             send_buf.clear();
-            match response {
-                Response::Ok => ft_async::futures::write_all(*conn, b"ok\n").await?,
-                Response::ConnectNbr(nbr) => {
-                    writeln!(send_buf, "{}", nbr)
-                        .expect("writing a number to a string should never fail");
-                    ft_async::futures::write_all(*conn, send_buf.as_bytes()).await?
-                }
-            }
+            response.send_to(*conn, &mut send_buf).await?;
         }
     }
 }
