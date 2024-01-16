@@ -292,9 +292,6 @@ impl State {
                 cmd.command,
             );
 
-            // I wish we could use a method on `Command` or `State` here, but
-            // we can't borrow `self` as it's already borrowed mutably.
-            // There's probably a way but I don't see it.
             let response = cmd.command.execute(player, &self.world, &self.teams);
             responses.push((player.conn, response));
         }
