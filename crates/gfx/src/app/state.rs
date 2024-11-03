@@ -30,19 +30,17 @@ impl State {
         match self {
             State::Map { state, .. } => {
                 matches!(state, MapState::Selected { .. })
-            },
+            }
             _ => false,
         }
     }
 
     pub fn selected_cell(&self) -> Option<(usize, usize)> {
         match self {
-            State::Map { state, .. } => {
-                match state {
-                    MapState::Selected { selected_cell, .. } => Some(*selected_cell),
-                    _ => None,
-                }
-            },
+            State::Map {
+                state: MapState::Selected { selected_cell, .. },
+                ..
+            } => Some(*selected_cell),
             _ => None,
         }
     }
@@ -59,13 +57,63 @@ impl Default for State {
 }
 
 #[derive(Debug)]
+pub enum PopupState {
+    MainMenu {
+        selected_item: usize,
+    },
+    ResourceMenu {
+        resource_type: ResourceType,
+        current_amount: u32,
+    },
+    PlayerMenu {
+        player_id: u32,
+        selected_action: PlayerAction,
+    },
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ResourceType {
+    Food,
+    Linemate,
+    Deraumere,
+    Sibur,
+    Mendiane,
+    Phiras,
+    Thystame,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum PlayerAction {
+    ViewInventory,
+    ViewFOV,
+    Back,
+}
+
+impl PlayerAction {
+    pub fn next(&self) -> Self {
+        match self {
+            Self::ViewInventory => Self::ViewFOV,
+            Self::ViewFOV => Self::Back,
+            Self::Back => Self::ViewInventory,
+        }
+    }
+
+    pub fn previous(&self) -> Self {
+        match self {
+            Self::ViewInventory => Self::Back,
+            Self::ViewFOV => Self::ViewInventory,
+            Self::Back => Self::ViewFOV,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum MapState {
     Selecting((usize, usize)),
     Selected {
         selected_cell: (usize, usize),
-        selected_command: usize,
-        command: PopupCommand,
-    }
+        popup_state: PopupState,
+    },
 }
 
 impl Default for MapState {
@@ -84,7 +132,7 @@ pub enum PopupCommand {
 
 impl From<usize> for PopupCommand {
     fn from(mut index: usize) -> Self {
-        index = index % 3;
+        index %= 3;
         match index {
             0 => PopupCommand::Command1,
             1 => PopupCommand::Command2,
