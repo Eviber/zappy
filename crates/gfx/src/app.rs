@@ -1,3 +1,4 @@
+use ratatui::widgets::TableState;
 use state::State;
 
 pub mod state;
@@ -8,6 +9,7 @@ pub struct App {
     pub should_quit: bool,
     pub logs: Vec<String>,
     pub state: State,
+    pub table_state: TableState,
 }
 
 impl App {
@@ -17,6 +19,7 @@ impl App {
             should_quit: false,
             logs: Vec::new(),
             state: State::default(),
+            table_state: Default::default(),
         }
     }
 
