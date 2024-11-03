@@ -12,6 +12,6 @@ readme.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ratatui = "0.24"
-crossterm = "0.27"
+ratatui = "0.29"
+crossterm = "0.28"
 anyhow = "1.0"
