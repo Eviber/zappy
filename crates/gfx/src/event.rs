@@ -7,7 +7,6 @@ use std::{
 use anyhow::Result;
 use crossterm::event::{self, Event as CrosstermEvent, KeyEvent, MouseEvent};
 
-
 /// Terminal events.
 #[derive(Clone, Copy, Debug)]
 pub enum Event {
@@ -44,7 +43,9 @@ impl EventHandler {
             thread::spawn(move || {
                 let mut last_tick = Instant::now();
                 loop {
-                    let timeout = tick_rate.checked_sub(last_tick.elapsed()).unwrap_or(tick_rate);
+                    let timeout = tick_rate
+                        .checked_sub(last_tick.elapsed())
+                        .unwrap_or(tick_rate);
 
                     if event::poll(timeout).expect("no events available") {
                         match event::read().expect("unable to read event") {
@@ -54,12 +55,12 @@ impl EventHandler {
                                 } else {
                                     Ok(()) // ignore KeyEventKind::Release on windows
                                 }
-                            },
+                            }
                             CrosstermEvent::Mouse(e) => sender.send(Event::Mouse(e)),
                             CrosstermEvent::Resize(w, h) => sender.send(Event::Resize(w, h)),
                             _ => unimplemented!(),
                         }
-                            .expect("failed to send terminal event")
+                        .expect("failed to send terminal event")
                     }
 
                     if last_tick.elapsed() >= tick_rate {
@@ -69,7 +70,11 @@ impl EventHandler {
                 }
             })
         };
-        Self { sender, receiver, handler }
+        Self {
+            sender,
+            receiver,
+            handler,
+        }
     }
 
     /// Receive the next event from the handler thread.
