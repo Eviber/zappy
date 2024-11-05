@@ -18,6 +18,7 @@ pub type TeamId = usize;
 
 /// A command that a player may attempt to execute.
 #[derive(Debug)]
+#[allow(dead_code)] // FIXME: temporary until all commands are implemented
 pub enum Command {
     /// The `avance` command.
     MoveForward,
@@ -263,15 +264,10 @@ impl State {
             responses.push((player.conn, Response::Ok));
         }
     }
-
-    /// Clears the whole state, deallocating all the resources it uses.
-    pub fn clear(&mut self) {
-        self.teams = Box::new([]);
-    }
 }
 
 /// The global state of the server.
-static STATE: ft::OnceCell<ft::Mutex<State, ft::sync::mutex::NoBlockLock>> = ft::OnceCell::new();
+static STATE: ft::Mutex<Option<State>, ft::sync::mutex::NoBlockMutex> = ft::Mutex::new(None);
 
 /// Initializes the global [`State`].
 ///
@@ -280,10 +276,12 @@ static STATE: ft::OnceCell<ft::Mutex<State, ft::sync::mutex::NoBlockLock>> = ft:
 /// This function panics if the global state is already initialized.
 #[inline]
 pub fn set_state(state: State) {
-    STATE
-        .set(ft::Mutex::new(state))
-        .ok()
-        .expect("the global state has already been initialized");
+    let mut lock = STATE.lock();
+    assert!(
+        lock.is_none(),
+        "the global state has already been initialized"
+    );
+    *lock = Some(state);
 }
 
 /// Returns a reference to the global [`State`].
@@ -293,18 +291,18 @@ pub fn set_state(state: State) {
 /// This function panics if the global state has not been initialized.
 #[inline]
 #[track_caller]
-pub fn state() -> ft::sync::mutex::Guard<'static, State, ft::sync::mutex::NoBlockLock> {
-    STATE
-        .get()
-        .expect("the global state has not been initialized")
-        .lock()
+pub fn state() -> ft::sync::mutex::MutexGuard<'static, State, ft::sync::mutex::NoBlockMutex> {
+    ft::sync::mutex::MutexGuard::map(STATE.lock(), |opt| {
+        opt.as_mut()
+            .expect("the global state has not been initialized")
+    })
 }
 
 /// Registers the `clear_state` function to be called when the program exits.
 extern "C" fn setup_clear_state() {
     extern "C" fn clear_state() {
-        if let Some(st) = STATE.get() {
-            st.lock().clear();
+        if let Some(mut st) = STATE.try_lock() {
+            *st = None;
         }
     }
 
