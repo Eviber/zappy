@@ -1,7 +1,9 @@
 //! Defines the global state of the server.
 
 use alloc::boxed::Box;
+use alloc::string::String;
 use alloc::vec::Vec;
+use core::fmt::Write;
 
 use ft::collections::ArrayVec;
 
@@ -64,12 +66,42 @@ impl Command {
             Command::AvailableTeamSlots => 0,
         }
     }
+
+    /// Executes the command, returning the response that must be sent back to the player.
+    #[allow(dead_code)]
+    pub fn execute(&self, player: &PlayerState, _world: &World, teams: &[Team]) -> Response {
+        match self {
+            Command::AvailableTeamSlots => {
+                let team_id = player.team_id;
+                let count = teams[team_id].available_slots;
+                Response::ConnectNbr(count)
+            }
+            _ => Response::Ok,
+        }
+    }
 }
 
 /// A response that can be sent back to a player.
 pub enum Response {
     /// The string `"ok"`.
     Ok,
+    /// The number of available slots in the team.
+    ConnectNbr(u32),
+}
+
+impl Response {
+    /// Sends the response to the specified file descriptor.
+    pub async fn send_to(&self, fd: ft::Fd, buf: &mut String) -> ft::Result<()> {
+        match self {
+            Response::Ok => ft_async::futures::write_all(fd, b"ok\n").await?,
+            Response::ConnectNbr(nbr) => {
+                writeln!(buf, "{}", nbr).unwrap();
+                ft_async::futures::write_all(fd, buf.as_bytes()).await?
+            }
+        }
+
+        Ok(())
+    }
 }
 
 /// A command that has been scheduled to be executed in the future.
@@ -261,7 +293,8 @@ impl State {
                 cmd.command,
             );
 
-            responses.push((player.conn, Response::Ok));
+            let response = cmd.command.execute(player, &self.world, &self.teams);
+            responses.push((player.conn, response));
         }
     }
 }
