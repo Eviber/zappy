@@ -40,7 +40,7 @@ const EXIT_USAGE: u8 = 2;
 static INTERRUPTED: AtomicBool = AtomicBool::new(false);
 
 /// The **SIGINT** and **SIGTERM** signal handler.
-extern "C" fn interrupt_handler() {
+extern "C" fn interrupt_handler(_: ft::Signal) {
     INTERRUPTED.store(true, Relaxed);
 }
 
@@ -67,8 +67,8 @@ fn main(args: &[&ft::CharStar], _env: &[&ft::CharStar]) -> u8 {
     set_state(State::from_args(&args));
 
     ft_log::trace!("setting up the signal handlers...");
-    ft::Signal::Interrupt.set_handler(interrupt_handler);
-    ft::Signal::Terminate.set_handler(interrupt_handler);
+    ft::Signal::INT.set_handler(ft::process::SigHandler::from_fn(interrupt_handler));
+    ft::Signal::TERM.set_handler(ft::process::SigHandler::from_fn(interrupt_handler));
 
     ft_log::trace!("spawning tasks...");
     ft_async::EXECUTOR.spawn(run_server(args.port));
@@ -93,7 +93,7 @@ fn main(args: &[&ft::CharStar], _env: &[&ft::CharStar]) -> u8 {
         match ft_async::EXECUTOR.block_until_ready() {
             // We successfully found a task to run, or have been interrupted
             // by a signal. In any case, we can go back to running tasks.
-            Ok(()) | Err(ft::Errno::INTERRUPTED) => (),
+            Ok(()) | Err(ft::Errno::INTR) => (),
             // An error occured.
             Err(err) => {
                 ft_log::error!("failed to block until a task is ready: {err}");
@@ -195,7 +195,7 @@ async fn run_ticks(freq: f32) {
 /// See [`run_ticks`].
 async fn try_run_ticks(freq: f32) -> ft::Result<()> {
     let period = Duration::from_secs_f32(1.0 / freq);
-    let mut next_tick = ft::Clock::MONOTONIC.get()?;
+    let mut next_tick = ft::Clock::MONOTONIC.get();
 
     let mut responses = Vec::new();
     let mut send_buf = String::new();

@@ -34,7 +34,7 @@ pub struct WriteAll<'a> {
     buf: &'a [u8],
 }
 
-impl<'a> Future for WriteAll<'a> {
+impl Future for WriteAll<'_> {
     type Output = ft::Result<()>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
@@ -69,9 +69,7 @@ impl<'a> ReadLine<'a> {
         let pending = self.buf.pending();
 
         // Try to find the index of the delimiter.
-        let Some(mut index) = pending.iter().position(|&byte| byte == b'\n') else {
-            return None;
-        };
+        let mut index = pending.iter().position(|&byte| byte == b'\n')?;
 
         // Convert the index into the index of the delimiter *within* the pending
         // buffer; not just within the added bytes.
@@ -112,7 +110,7 @@ impl<'a> Future for ReadLine<'a> {
 
         // Try to read from the file descriptor.
         match self.buf.fill_with_fd(fd) {
-            Ok([]) => return Poll::Ready(Err(ft::Errno::CONNECTION_RESET)),
+            Ok(0) => return Poll::Ready(Err(ft::Errno::CONNRESET)),
             Ok(_) => (),
             Err(err) => return Poll::Ready(Err(err)),
         };
