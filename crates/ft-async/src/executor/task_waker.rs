@@ -204,7 +204,7 @@ impl Sleepers {
     /// Wakes up tasks that are ready to be polled.
     #[allow(clippy::unwrap_used)]
     pub fn wake_up_tasks(&mut self) -> ft::Result<()> {
-        let now = ft::Clock::MONOTONIC.get()?;
+        let now = ft::Clock::MONOTONIC.get();
         while let Some(sleeper) = self.list.peek() {
             if sleeper.alarm <= now {
                 self.list.pop().unwrap().waker.wake();
@@ -259,7 +259,7 @@ impl TaskWaker {
     pub fn block_until_ready(&mut self) -> ft::Result<()> {
         let timeout = match self.sleepers.earliest() {
             Some(earliest) => {
-                let now = ft::Clock::MONOTONIC.get()?;
+                let now = ft::Clock::MONOTONIC.get();
                 Some(earliest.saturating_sub(now))
             }
             None => None,

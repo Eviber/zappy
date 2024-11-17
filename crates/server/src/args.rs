@@ -21,7 +21,7 @@ pub enum Error<'a> {
     InvalidTeamName(&'a [u8]),
 }
 
-impl<'a> fmt::Display for Error<'a> {
+impl fmt::Display for Error<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Self::UnexpectedPositional(arg) => write!(f, "unexpected positional argument: `{arg}`"),
@@ -107,7 +107,7 @@ impl<'a> Args<'a> {
     }
 }
 
-impl<'a> Default for Args<'a> {
+impl Default for Args<'_> {
     fn default() -> Self {
         Self {
             port: 1234,

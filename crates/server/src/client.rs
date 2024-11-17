@@ -72,7 +72,7 @@ pub enum ClientError {
 impl From<ft::Errno> for ClientError {
     fn from(value: ft::Errno) -> Self {
         match value {
-            ft::Errno::CONNECTION_RESET => Self::Disconnected,
+            ft::Errno::CONNRESET => Self::Disconnected,
             _ => Self::Unexpected(value),
         }
     }

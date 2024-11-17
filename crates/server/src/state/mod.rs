@@ -1,7 +1,9 @@
 //! Defines the global state of the server.
 
 use alloc::boxed::Box;
+use alloc::string::String;
 use alloc::vec::Vec;
+use core::fmt::Write;
 
 use ft::collections::ArrayVec;
 
@@ -18,6 +20,7 @@ pub type TeamId = usize;
 
 /// A command that a player may attempt to execute.
 #[derive(Debug)]
+#[allow(dead_code)] // FIXME: temporary until all commands are implemented
 pub enum Command {
     /// The `avance` command.
     MoveForward,
@@ -63,12 +66,42 @@ impl Command {
             Command::AvailableTeamSlots => 0,
         }
     }
+
+    /// Executes the command, returning the response that must be sent back to the player.
+    #[allow(dead_code)]
+    pub fn execute(&self, player: &PlayerState, _world: &World, teams: &[Team]) -> Response {
+        match self {
+            Command::AvailableTeamSlots => {
+                let team_id = player.team_id;
+                let count = teams[team_id].available_slots;
+                Response::ConnectNbr(count)
+            }
+            _ => Response::Ok,
+        }
+    }
 }
 
 /// A response that can be sent back to a player.
 pub enum Response {
     /// The string `"ok"`.
     Ok,
+    /// The number of available slots in the team.
+    ConnectNbr(u32),
+}
+
+impl Response {
+    /// Sends the response to the specified file descriptor.
+    pub async fn send_to(&self, fd: ft::Fd, buf: &mut String) -> ft::Result<()> {
+        match self {
+            Response::Ok => ft_async::futures::write_all(fd, b"ok\n").await?,
+            Response::ConnectNbr(nbr) => {
+                writeln!(buf, "{}", nbr).unwrap();
+                ft_async::futures::write_all(fd, buf.as_bytes()).await?
+            }
+        }
+
+        Ok(())
+    }
 }
 
 /// A command that has been scheduled to be executed in the future.
@@ -260,18 +293,14 @@ impl State {
                 cmd.command,
             );
 
-            responses.push((player.conn, Response::Ok));
+            let response = cmd.command.execute(player, &self.world, &self.teams);
+            responses.push((player.conn, response));
         }
-    }
-
-    /// Clears the whole state, deallocating all the resources it uses.
-    pub fn clear(&mut self) {
-        self.teams = Box::new([]);
     }
 }
 
 /// The global state of the server.
-static STATE: ft::OnceCell<ft::Mutex<State, ft::sync::mutex::NoBlockLock>> = ft::OnceCell::new();
+static STATE: ft::Mutex<Option<State>, ft::sync::mutex::NoBlockMutex> = ft::Mutex::new(None);
 
 /// Initializes the global [`State`].
 ///
@@ -280,10 +309,12 @@ static STATE: ft::OnceCell<ft::Mutex<State, ft::sync::mutex::NoBlockLock>> = ft:
 /// This function panics if the global state is already initialized.
 #[inline]
 pub fn set_state(state: State) {
-    STATE
-        .set(ft::Mutex::new(state))
-        .ok()
-        .expect("the global state has already been initialized");
+    let mut lock = STATE.lock();
+    assert!(
+        lock.is_none(),
+        "the global state has already been initialized"
+    );
+    *lock = Some(state);
 }
 
 /// Returns a reference to the global [`State`].
@@ -293,18 +324,18 @@ pub fn set_state(state: State) {
 /// This function panics if the global state has not been initialized.
 #[inline]
 #[track_caller]
-pub fn state() -> ft::sync::mutex::Guard<'static, State, ft::sync::mutex::NoBlockLock> {
-    STATE
-        .get()
-        .expect("the global state has not been initialized")
-        .lock()
+pub fn state() -> ft::sync::mutex::MutexGuard<'static, State, ft::sync::mutex::NoBlockMutex> {
+    ft::sync::mutex::MutexGuard::map(STATE.lock(), |opt| {
+        opt.as_mut()
+            .expect("the global state has not been initialized")
+    })
 }
 
 /// Registers the `clear_state` function to be called when the program exits.
 extern "C" fn setup_clear_state() {
     extern "C" fn clear_state() {
-        if let Some(st) = STATE.get() {
-            st.lock().clear();
+        if let Some(mut st) = STATE.try_lock() {
+            *st = None;
         }
     }
 

@@ -14,7 +14,7 @@ mod tasks;
 mod waker;
 
 /// The mutex type used by the executor.
-type Mutex<T> = ft::Mutex<T, ft::sync::mutex::NoBlockLock>;
+type Mutex<T> = ft::Mutex<T, ft::sync::mutex::NoBlockMutex>;
 
 /// A boxed future, supported by the executor.
 type Task<'a> = Pin<Box<dyn 'a + Send + Future<Output = ()>>>;
