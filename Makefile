@@ -30,7 +30,7 @@ server: $(SERVER)
 	cp $(SERVER) server
 
 $(SERVER):
-	cargo build $(if $(RELEASE),--release) --bin server
+	RUSTFLAGS="-C panic=abort" cargo build -Z build-std=core,alloc,compiler_builtins $(if $(RELEASE),--release) --bin server
 
 gfx: $(GFX)
 	cp $(GFX) gfx

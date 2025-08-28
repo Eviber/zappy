@@ -6,7 +6,6 @@
 #![warn(missing_docs, clippy::must_use_candidate)]
 
 extern crate alloc;
-extern crate unwinding;
 
 use alloc::string::String;
 use alloc::vec::Vec;

@@ -17,7 +17,3 @@ ft = { git = "https://github.com/nils-mathieu/libft-rs", features = [
 ] }
 ft-async = { path = "../ft-async" }
 ft-log = { path = "../ft-log" }
-unwinding = { version = "0.2", default-features = false, features = [
-    "unwinder",
-    "personality",
-] }

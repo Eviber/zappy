@@ -8,7 +8,7 @@ use crate::EXECUTOR;
 
 /// Returns a future that completes when the `buf` has been completely written to the
 /// provided file descriptor.
-pub fn write_all(fd: ft::Fd, buf: &[u8]) -> WriteAll {
+pub fn write_all<'a>(fd: ft::Fd, buf: &'a [u8]) -> WriteAll<'a> {
     WriteAll { fd, buf }
 }
 
@@ -23,7 +23,7 @@ pub fn write_all(fd: ft::Fd, buf: &[u8]) -> WriteAll {
 /// # Returns
 ///
 /// An error, or the line without the final delimiter.
-pub fn read_line(fd: ft::Fd, buf: &mut ReadBuffer) -> ReadLine {
+pub fn read_line<'a>(fd: ft::Fd, buf: &'a mut ReadBuffer) -> ReadLine<'a> {
     ReadLine { fd, buf }
 }
 
