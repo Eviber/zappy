@@ -1,7 +1,8 @@
 TARGET := $(shell cargo metadata --format-version=1 | jq -r .target_directory)/$(if $(RELEASE),release,debug)
+SERVER_TARGET := $(shell cargo -Z unstable-options -C crates/server metadata --format-version=1 | jq -r .target_directory)/$(if $(RELEASE),release,debug)
 
 CLIENT := $(TARGET)/client
-SERVER := $(TARGET)/server
+SERVER := $(SERVER_TARGET)/server
 GFX := $(TARGET)/gfx
 
 .PHONY: all
@@ -39,5 +40,5 @@ $(GFX):
 	cargo build $(if $(RELEASE),--release) --bin gfx
 
 -include $(TARGET)/client.d
--include $(TARGET)/server.d
+-include $(SERVER_TARGET)/server.d
 -include $(TARGET)/gfx.d
