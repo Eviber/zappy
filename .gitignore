@@ -1,6 +1,8 @@
 /target
+/crates/server/target/
 **.DS_Store
 
 /server
 /client
+/gfx
 .idea
