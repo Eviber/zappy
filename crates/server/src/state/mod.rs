@@ -95,7 +95,10 @@ impl Response {
         match self {
             Response::Ok => ft_async::futures::write_all(fd, b"ok\n").await?,
             Response::ConnectNbr(nbr) => {
-                writeln!(buf, "{}", nbr).unwrap();
+                // NOTE: This cannot fail because writing to a string in this way will panic in case
+                // of memory allocation failure instead of returning an error.
+                let result = writeln!(buf, "{}", nbr);
+                debug_assert!(result.is_ok(), "writing to a string should never fail");
                 ft_async::futures::write_all(fd, buf.as_bytes()).await?
             }
         }

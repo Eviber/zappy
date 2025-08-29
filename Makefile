@@ -1,4 +1,4 @@
-TARGET := $(CURDIR)/target/$(if $(RELEASE),release,debug)
+TARGET := $(shell cargo metadata --format-version=1 | jq -r .target_directory)/$(if $(RELEASE),release,debug)
 
 CLIENT := $(TARGET)/client
 SERVER := $(TARGET)/server
@@ -30,7 +30,7 @@ server: $(SERVER)
 	cp $(SERVER) server
 
 $(SERVER):
-	cargo build $(if $(RELEASE),--release) --bin server
+	RUSTFLAGS="-C panic=abort" cargo build -Z build-std=core,alloc,compiler_builtins $(if $(RELEASE),--release) --bin server
 
 gfx: $(GFX)
 	cp $(GFX) gfx
