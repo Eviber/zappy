@@ -1,7 +1,7 @@
 use alloc::format;
 
 use crate::client::{Client, ClientError};
-use crate::state::{state, Command, ObjectClass, PlayerId, TeamId};
+use crate::state::{Command, ObjectClass, PlayerId, TeamId, state};
 
 mod error;
 
@@ -63,8 +63,8 @@ pub async fn handle(mut client: Client, team_id: TeamId) -> Result<(), ClientErr
 async fn finish_handshake(client: &mut Client, team_id: TeamId) -> ft::Result<()> {
     let lock = state();
     let available_slots = lock.available_slots_for(team_id);
-    let width = lock.world().width();
-    let height = lock.world().height();
+    let width = lock.world.width;
+    let height = lock.world.height;
     drop(lock);
 
     client

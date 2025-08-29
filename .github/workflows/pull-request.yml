@@ -18,12 +18,12 @@ jobs:
       - name: Format
         run: cargo fmt --verbose --check
       - name: Clippy (client)
-        run: cargo clippy --verbose --package client
+        run: cargo clippy --verbose
       - name: Clippy (server)
-        run: cargo -Z unstable-options -C crates/server clippy --verbose --package server
+        run: cargo -Z unstable-options -C crates/server clippy --verbose
       - name: Build (client)
-        run: cargo build --verbose --package client
+        run: cargo build --verbose
       - name: Build (server)
-        run: cargo -Z unstable-options -C crates/server build --verbose --package server
+        run: cargo -Z unstable-options -C crates/server build --verbose
       - name: Make
         run: make re
