@@ -284,7 +284,7 @@ impl State {
                 0 => PlayerDirection::North,
                 1 => PlayerDirection::East,
                 2 => PlayerDirection::South,
-                4 => PlayerDirection::West,
+                3 => PlayerDirection::West,
                 _ => unreachable!(),
             },
             x: self.rng.next_u64() as u32 % self.world.width,
