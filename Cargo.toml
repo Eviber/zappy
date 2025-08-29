@@ -12,6 +12,6 @@ authors = [
     "Nils Mathieu <nmathieu@student.42.fr>",
 ]
 readme = "README.md"
-edition = "2021"
+edition = "2024"
 repository = "https://github.com/Eviber/zappy"
 publish = false
