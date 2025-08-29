@@ -15,7 +15,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - name: Format
+      - name: Format (client)
+        run: cargo fmt --verbose --check
+      - name: Format -Z unstable-options -C crates/server clippy (client)
         run: cargo fmt --verbose --check
       - name: Clippy (client)
         run: cargo clippy -- -D warnings  --verbose
