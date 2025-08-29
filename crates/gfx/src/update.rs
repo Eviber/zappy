@@ -1,5 +1,5 @@
-use crate::app::state::{MapState, PlayerAction, PopupState, ResourceType, State};
 use crate::app::App;
+use crate::app::state::{MapState, PlayerAction, PopupState, ResourceType, State};
 use crate::game_logic::{CellContent, Map};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::widgets::TableState;
@@ -111,10 +111,9 @@ fn update_selected_cell(app: &mut App) {
     if let (Some(row), Some(col)) = (
         app.table_state.selected(),
         app.table_state.selected_column(),
-    ) {
-        if let State::Map { state, .. } = &mut app.state {
-            *state = MapState::Selecting((row, col));
-        }
+    ) && let State::Map { state, .. } = &mut app.state
+    {
+        *state = MapState::Selecting((row, col));
     }
 }
 
@@ -142,10 +141,10 @@ fn handle_popup_navigation(app: &mut App, key_event: KeyEvent) {
             } => handle_player_menu(key_event, *player_id, *selected_cell, selected_action),
         };
 
-        if let Some(new_state) = new_state {
-            if let State::Map { state, .. } = &mut app.state {
-                *state = new_state;
-            }
+        if let Some(new_state) = new_state
+            && let State::Map { state, .. } = &mut app.state
+        {
+            *state = new_state;
         }
     }
 }

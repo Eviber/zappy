@@ -19,7 +19,7 @@ pub mod game_logic;
 use anyhow::Result;
 use app::App;
 use event::{Event, EventHandler};
-use ratatui::{backend::CrosstermBackend, Terminal};
+use ratatui::{Terminal, backend::CrosstermBackend};
 use tui::Tui;
 use update::update;
 

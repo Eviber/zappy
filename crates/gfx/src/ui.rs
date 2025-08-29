@@ -1,5 +1,5 @@
-use crate::app::state::{MapState, PlayerAction, PopupState, ResourceType, State};
 use crate::app::App;
+use crate::app::state::{MapState, PlayerAction, PopupState, ResourceType, State};
 use crate::game_logic::{CellContent, MapCell};
 use ratatui::{prelude::*, widgets::*};
 
@@ -291,11 +291,7 @@ fn render_player_menu(
 
     let player = cell.content.iter().find_map(|content| {
         if let CellContent::Player(p) = content {
-            if p.id == player_id {
-                Some(p)
-            } else {
-                None
-            }
+            if p.id == player_id { Some(p) } else { None }
         } else {
             None
         }
