@@ -1,0 +1,5 @@
+[build]
+rustflags = ["-C", "panic=abort"]
+
+[unstable]
+build-std = ["core", "alloc", "std", "compiler_builtins"]

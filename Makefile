@@ -1,7 +1,8 @@
 TARGET := $(shell cargo metadata --format-version=1 | jq -r .target_directory)/$(if $(RELEASE),release,debug)
+SERVER_TARGET := $(shell cargo -Z unstable-options -C crates/server metadata --format-version=1 | jq -r .target_directory)/$(if $(RELEASE),release,debug)
 
 CLIENT := $(TARGET)/client
-SERVER := $(TARGET)/server
+SERVER := $(SERVER_TARGET)/server
 GFX := $(TARGET)/gfx
 
 .PHONY: all
@@ -30,7 +31,7 @@ server: $(SERVER)
 	cp $(SERVER) server
 
 $(SERVER):
-	RUSTFLAGS="-C panic=abort" cargo build -Z build-std=core,alloc,compiler_builtins $(if $(RELEASE),--release) --bin server
+	cargo -Z unstable-options -C crates/server build $(if $(RELEASE),--release) --package server
 
 gfx: $(GFX)
 	cp $(GFX) gfx
@@ -39,5 +40,5 @@ $(GFX):
 	cargo build $(if $(RELEASE),--release) --bin gfx
 
 -include $(TARGET)/client.d
--include $(TARGET)/server.d
+-include $(SERVER_TARGET)/server.d
 -include $(TARGET)/gfx.d
