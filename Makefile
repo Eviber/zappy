@@ -1,4 +1,4 @@
-TARGET := $(CURDIR)/target/$(if $(RELEASE),release,debug)
+TARGET := $(shell cargo metadata --format-version=1 | jq -r .target_directory)/$(if $(RELEASE),release,debug)
 
 CLIENT := $(TARGET)/client
 SERVER := $(TARGET)/server
