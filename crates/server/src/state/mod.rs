@@ -97,7 +97,8 @@ impl Response {
             Response::ConnectNbr(nbr) => {
                 // NOTE: This cannot fail because writing to a string in this way will panic in case
                 // of memory allocation failure instead of returning an error.
-                _ = writeln!(buf, "{}", nbr);
+                let result = writeln!(buf, "{}", nbr);
+                debug_assert!(result.is_ok(), "writing to a string should never fail");
                 ft_async::futures::write_all(fd, buf.as_bytes()).await?
             }
         }
