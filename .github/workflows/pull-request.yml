@@ -19,23 +19,11 @@ jobs:
         run: cargo fmt --verbose --check
       - name: Clippy (client)
         run: cargo clippy --verbose --package client
-      - name: Clippy (ft-async)
-        run: cargo clippy --verbose --package ft-async
-      - name: Clippy (ft-log)
-        run: cargo clippy --verbose --package ft-log
-      - name: Clippy (gfx)
-        run: cargo clippy --verbose --package gfx
       - name: Clippy (server)
-        run: RUSTFLAGS="-C panic=abort" cargo clippy --verbose --package server
+        run: cargo -Z unstable-options -C crates/server clippy --verbose --package server
       - name: Build (client)
         run: cargo build --verbose --package client
-      - name: Build (ft-async)
-        run: cargo build --verbose --package ft-async
-      - name: Build (ft-log)
-        run: cargo build --verbose --package ft-log
-      - name: Build (gfx)
-        run: cargo build --verbose --package gfx
       - name: Build (server)
-        run: RUSTFLAGS="-C panic=abort" cargo build -Z build-std=core,alloc,compiler_builtins --verbose --package server
+        run: cargo -Z unstable-options -C crates/server build --verbose --package server
       - name: Make
         run: make re
