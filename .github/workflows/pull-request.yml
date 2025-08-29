@@ -18,11 +18,23 @@ jobs:
       - name: Format
         run: cargo fmt --verbose --check
       - name: Clippy
-        run: cargo clippy --verbose --exclude server
+        run: cargo clippy --verbose --package client
+      - name: Clippy
+        run: cargo clippy --verbose --package ft-async
+      - name: Clippy
+        run: cargo clippy --verbose --package ft-log
+      - name: Clippy
+        run: cargo clippy --verbose --package gfx
       - name: Clippy
         run: RUSTFLAGS="-C panic=abort" cargo clippy --verbose --package server
       - name: Build
-        run: cargo build --verbose --exclude server
+        run: cargo build --verbose --package client
+      - name: Build
+        run: cargo build --verbose --package ft-async
+      - name: Build
+        run: cargo build --verbose --package ft-log
+      - name: Build
+        run: cargo build --verbose --package gfx
       - name: Build
         run: RUSTFLAGS="-C panic=abort" cargo build -Z build-std=core,alloc,compiler_builtins --verbose --package server
       - name: Make
