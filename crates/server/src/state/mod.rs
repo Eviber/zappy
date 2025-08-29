@@ -10,7 +10,9 @@ use ft::collections::ArrayVec;
 use crate::args::Args;
 use crate::client::Client;
 use crate::player::PlayerError;
+use crate::state::rng::Rng;
 
+mod rng;
 mod world;
 
 pub use self::world::*;
@@ -66,19 +68,6 @@ impl Command {
             Command::AvailableTeamSlots => 0,
         }
     }
-
-    /// Executes the command, returning the response that must be sent back to the player.
-    #[allow(dead_code)]
-    pub fn execute(&self, player: &PlayerState, _world: &World, teams: &[Team]) -> Response {
-        match self {
-            Command::AvailableTeamSlots => {
-                let team_id = player.team_id;
-                let count = teams[team_id].available_slots;
-                Response::ConnectNbr(count)
-            }
-            _ => Response::Ok,
-        }
-    }
 }
 
 /// A response that can be sent back to a player.
@@ -127,6 +116,41 @@ pub struct Team {
 /// The ID of a player.
 pub type PlayerId = usize;
 
+/// A direction in which the player can be facing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerDirection {
+    /// The player faces the negative Y direction.
+    North,
+    /// The player faces the positive Y direction.
+    South,
+    /// The player faces the negative X direction.
+    West,
+    /// The player faces the positive X direction.
+    East,
+}
+
+impl PlayerDirection {
+    /// Turns the direction right.
+    pub fn turn_right(self) -> Self {
+        match self {
+            PlayerDirection::North => PlayerDirection::East,
+            PlayerDirection::South => PlayerDirection::West,
+            PlayerDirection::West => PlayerDirection::North,
+            PlayerDirection::East => PlayerDirection::South,
+        }
+    }
+
+    /// Turns the direction left.
+    pub fn turn_left(self) -> Self {
+        match self {
+            PlayerDirection::North => PlayerDirection::West,
+            PlayerDirection::South => PlayerDirection::East,
+            PlayerDirection::West => PlayerDirection::South,
+            PlayerDirection::East => PlayerDirection::North,
+        }
+    }
+}
+
 /// The state of a player.
 pub struct PlayerState {
     /// The ID of the player.
@@ -137,6 +161,12 @@ pub struct PlayerState {
     conn: ft::Fd,
     /// The commands that have been buffered for the player.
     commands: ArrayVec<ScheduledCommand, 10>,
+    /// A direction in which the player is facing.
+    facing: PlayerDirection,
+    /// Current position of the player on the horizontal axis.
+    x: u32,
+    /// Current position of the player on the vertical axis.
+    y: u32,
 }
 
 impl PlayerState {
@@ -153,17 +183,45 @@ impl PlayerState {
             })
             .is_ok()
     }
+
+    /// Turns the player right.
+    #[inline]
+    pub fn turn_right(&mut self) {
+        self.facing = self.facing.turn_right();
+    }
+
+    /// Turns the player left.
+    #[inline]
+    pub fn turn_left(&mut self) {
+        self.facing = self.facing.turn_left();
+    }
+
+    /// Advances the player's position based on their current direction.
+    pub fn advance_position(&mut self, width: u32, height: u32) {
+        match self.facing {
+            PlayerDirection::North if self.y == height - 1 => self.y = 0,
+            PlayerDirection::North => self.y += 1,
+            PlayerDirection::South if self.y == 0 => self.y = height - 1,
+            PlayerDirection::South => self.y -= 1,
+            PlayerDirection::West if self.x == 0 => self.x = width - 1,
+            PlayerDirection::West => self.x -= 1,
+            PlayerDirection::East if self.x == width - 1 => self.x = 0,
+            PlayerDirection::East => self.x += 1,
+        }
+    }
 }
 
 /// The global state of the server, responsible for managing the clients and the game.
 #[allow(clippy::vec_box)] // `PlayerState` is a huge struct, copying it around is not a good idea.
 pub struct State {
     /// Information about the teams available in the current game.
-    teams: Box<[Team]>,
+    pub teams: Box<[Team]>,
     /// The list of players currently connected to the server.
-    players: Vec<Box<PlayerState>>,
+    pub players: Vec<Box<PlayerState>>,
     /// The current state of the world.
-    world: World,
+    pub world: World,
+    /// The random number generator used by the server.
+    pub rng: Rng,
 }
 
 impl State {
@@ -184,6 +242,7 @@ impl State {
             teams,
             players: Vec::new(),
             world,
+            rng: Rng::from_urandom().unwrap_or(Rng::new(0xdeadbeef)),
         }
     }
 
@@ -221,6 +280,15 @@ impl State {
             team_id,
             conn: client.fd(),
             commands: ArrayVec::new(),
+            facing: match self.rng.next_u64() % 4 {
+                0 => PlayerDirection::North,
+                1 => PlayerDirection::East,
+                2 => PlayerDirection::South,
+                4 => PlayerDirection::West,
+                _ => unreachable!(),
+            },
+            x: self.rng.next_u64() as u32 % self.world.width,
+            y: self.rng.next_u64() as u32 % self.world.height,
         }));
 
         Ok(client.id())
@@ -257,10 +325,25 @@ impl State {
         self.teams[team].available_slots
     }
 
-    /// Returns the current state of the world.
-    #[inline]
-    pub fn world(&self) -> &World {
-        &self.world
+    /// Executes a command, returning a response.
+    pub fn execute_command(&mut self, command: Command, player: usize) -> Response {
+        let player = &mut self.players[player];
+
+        match command {
+            Command::TurnLeft => {
+                player.turn_left();
+                Response::Ok
+            }
+            Command::TurnRight => {
+                player.turn_right();
+                Response::Ok
+            }
+            Command::MoveForward => {
+                player.advance_position(self.world.width, self.world.height);
+                Response::Ok
+            }
+            _ => Response::Ok,
+        }
     }
 
     /// Notifies the state that a whole tick has passed.
@@ -271,7 +354,8 @@ impl State {
     ///   descriptiors.
     #[allow(clippy::unwrap_used)]
     pub fn tick(&mut self, responses: &mut Vec<(ft::Fd, Response)>) {
-        for player in &mut self.players {
+        for player_index in 0..self.players.len() {
+            let player = &mut self.players[player_index];
             let Some(command) = player.commands.first_mut() else {
                 continue;
             };
@@ -281,12 +365,12 @@ impl State {
                 continue;
             }
 
-            // This unwrap can ever fail because the case where there is no
+            // This unwrap can't ever fail because the case where there is no
             // first element is handled above.
             // Also, we can't optimize this with a swap_remove because the
             // order in which commands are inserted matters. Maybe we can use
             // a VecDeque instead, but that would be vastly overkill for those
-            // 10 poor elements.
+            // 10 elements.
             let cmd = player.commands.remove(0).unwrap();
 
             // Execute the command.
@@ -296,8 +380,10 @@ impl State {
                 cmd.command,
             );
 
-            let response = cmd.command.execute(player, &self.world, &self.teams);
-            responses.push((player.conn, response));
+            let player_conn = player.conn;
+
+            let response = self.execute_command(cmd.command, player_index);
+            responses.push((player_conn, response));
         }
     }
 }

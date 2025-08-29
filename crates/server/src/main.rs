@@ -2,6 +2,7 @@
 
 #![no_std]
 #![no_main]
+#![feature(maybe_uninit_as_bytes)]
 #![deny(clippy::unwrap_used, unsafe_op_in_unsafe_fn)]
 #![warn(missing_docs, clippy::must_use_candidate)]
 
@@ -14,7 +15,7 @@ use self::args::Args;
 use self::client::{Client, ClientError};
 use self::player::PlayerError;
 use self::server::Server;
-use self::state::{set_state, state, State};
+use self::state::{State, set_state, state};
 
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering::Relaxed;
