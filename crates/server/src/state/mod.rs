@@ -342,6 +342,11 @@ impl State {
                 player.advance_position(self.world.width, self.world.height);
                 Response::Ok
             }
+            Command::AvailableTeamSlots => {
+                let team = player.team_id;
+                let available_slots = self.teams[team].available_slots;
+                Response::ConnectNbr(available_slots)
+            }
             _ => Response::Ok,
         }
     }
