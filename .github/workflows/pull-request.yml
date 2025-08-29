@@ -20,10 +20,10 @@ jobs:
       - name: Clippy
         run: cargo clippy --verbose --exclude server
       - name: Clippy
-        run: cargo clippy --verbose --package server
+        run: RUSTFLAGS="-C panic=abort" cargo clippy --verbose --package server
       - name: Build
         run: cargo build --verbose --exclude server
       - name: Build
-        run: cargo build --verbose --package server
+        run: RUSTFLAGS="-C panic=abort" cargo build -Z build-std=core,alloc,compiler_builtins --verbose --package server
       - name: Make
         run: make re
