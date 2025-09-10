@@ -1,6 +1,6 @@
 
 [workspace]
-members = ["crates/client", "crates/gfx"]
+members = ["crates/bevy-gfx","crates/client", "crates/gfx"]
 exclude = ["crates/server"]
 resolver = "3"
 
@@ -15,3 +15,20 @@ readme = "README.md"
 edition = "2024"
 repository = "https://github.com/Eviber/zappy"
 publish = false
+
+# Enable a small amount of optimization in the dev profile.
+[profile.dev]
+opt-level = 1
+
+# Enable a large amount of optimization in the dev profile for dependencies.
+[profile.dev.package."*"]
+opt-level = 3
+
+# Enable more optimization in the release profile at the cost of compile time.
+[profile.release]
+# Compile the entire crate as one unit.
+# Slows compile times, marginal improvements.
+codegen-units = 1
+# Do a second optimization pass over the entire program, including dependencies.
+# Slows compile times, marginal improvements.
+lto = "thin"

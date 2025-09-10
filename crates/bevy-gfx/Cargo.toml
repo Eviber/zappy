@@ -1,0 +1,13 @@
+[package]
+name = "bevy-gfx"
+version.workspace = true
+authors.workspace = true
+readme.workspace = true
+edition.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+bevy = "0.16"
+log = { version = "*", features = ["max_level_debug", "release_max_level_warn"] }
+rand = "0.9"
