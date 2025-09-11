@@ -87,7 +87,7 @@ fn rotate_camera(
         let current_pitch = (current_pos.y / distance).asin();
 
         // Clamp the new pitch angle within bounds
-        let new_pitch = (current_pitch + pitch_delta).clamp(min_pitch, max_pitch);
+        let new_pitch = (current_pitch + pitch_delta); //.clamp(min_pitch, max_pitch);
         let actual_pitch_delta = new_pitch - current_pitch;
 
         // Apply yaw rotation (around world Y axis) - no clamping needed
@@ -96,6 +96,7 @@ fn rotate_camera(
 
         // Apply pitch rotation (around camera's local X axis) with clamping
         if actual_pitch_delta.abs() > 0.001 {
+            println!("Current pitch: {:.1}°", new_pitch.to_degrees());
             // Only apply if there's meaningful change
             let pitch_axis = camera_transform.local_x();
             let pitch_rotation = Quat::from_axis_angle(*pitch_axis, actual_pitch_delta);
