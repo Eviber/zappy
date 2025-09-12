@@ -129,7 +129,7 @@ fn display_pitch(
     let text_pos = Vec3::new(-8.0, 8.0, 0.0);
     gizmos.ray(text_pos, Vec3::X * 0.1, Color::srgb(1.0, 0.0, 0.0));
 
-    ***query = format!("Current pitch: {:.1}°", pitch_degrees);
+    ***query = format!("{:.1}°", pitch_degrees);
 }
 
 #[derive(Component)]
@@ -140,6 +140,32 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    // initial communications, using stdin and stdout for now, later with tcp
+
+    // Symbol Meaning
+    // X Width or horizontal position
+    // Y Height or vertical position
+    // N Team name
+    // q Quantity
+    // R Incantation result
+    // n Player number
+    // M Message
+    // O Orientation (N:1, E:2, S:3, O:4)
+    // i Resource number
+    // L Player level or incantation level
+    // e Egg number
+    // T Time unit
+
+    // read one line that should be "BIENVENUE"
+    // sends "GRAPHIC"
+    // "msz X Y" is received (map size)
+    // "sgt T" is received (time unit)
+    // "bct X Y q q q q q q q q q" is received for each cell of the map
+    // "tna N" is received for each team
+    // "pnw #n X Y O L N" is received for each player
+    // "enw #e X Y" is received for each egg
+    println!("Setup scene");
+
     // plane
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::default().mesh().size(20., 20.))),
@@ -160,6 +186,6 @@ fn setup(
     ));
 
     commands
-        .spawn(Text::new("FPS: "))
+        .spawn(Text::new("Current pitch: "))
         .with_child(TextSpan::default());
 }
