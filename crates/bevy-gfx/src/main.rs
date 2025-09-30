@@ -135,11 +135,97 @@ fn display_pitch(
 #[derive(Component)]
 struct Ground;
 
+#[derive(Debug, Resource)]
+struct GameState {
+    map_size: (u32, u32),
+    time_unit: u32,
+    teams: Vec<String>,
+    players: Vec<Player>,
+    eggs: Vec<Egg>,
+    resources: Vec<Vec<u32>>, // 2D array for resources in each cell
+}
+
+#[derive(Debug)]
+struct Player {
+    id: u32,
+    position: (u32, u32),
+    orientation: u8,
+    level: u8,
+    team: String,
+}
+
+#[derive(Debug)]
+struct Egg {
+    id: u32,
+    position: (u32, u32),
+}
+
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    let game_state = get_initial_game_state();
+    eprintln!("Initial game state: {:#?}", game_state);
+
+    // commands.insert_resource(game_state);
+
+    let delta_x = game_state.map_size.0 as f32 * 5. / 2.;
+    let delta_y = game_state.map_size.1 as f32 * 5. / 2.;
+
+    for player in &game_state.players {
+        commands.spawn((
+            Mesh3d(meshes.add(Cuboid::new(0.8, 1.5, 0.8).mesh())),
+            MeshMaterial3d(materials.add(Color::srgb(0.8, 0.2, 0.2))),
+            Transform::from_translation(Vec3::new(
+                player.position.0 as f32 * 5.,
+                0.75,
+                player.position.1 as f32 * 5.,
+            )),
+        ));
+    }
+
+    // plane
+    commands.spawn((
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(
+            game_state.map_size.0 as f32 * 5.,
+            game_state.map_size.1 as f32 * 5.,
+        ))),
+        MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
+        Transform::from_xyz(delta_x - 2.5, 0.0, delta_y - 2.5),
+        Ground,
+    ));
+
+    // light
+    commands.spawn((
+        DirectionalLight::default(),
+        Transform::from_translation(Vec3::ONE).looking_at(Vec3::ZERO, Vec3::Y),
+    ));
+
+    // camera
+    commands.spawn((
+        Camera3d::default(),
+        Transform::from_xyz(-5.0, 10.0, -5.0).looking_at(
+            Vec3 {
+                x: delta_x,
+                y: 0.0,
+                z: delta_y,
+            },
+            Vec3::Y,
+        ),
+    ));
+
+    commands
+        .spawn(Text::new("Current pitch: "))
+        .with_child(TextSpan::default());
+}
+
+fn read_line(line: &mut String) {
+    line.clear();
+    std::io::stdin().read_line(line).unwrap();
+}
+
+fn get_initial_game_state() -> GameState {
     // initial communications, using stdin and stdout for now, later with tcp
 
     // Symbol Meaning
@@ -164,28 +250,106 @@ fn setup(
     // "tna N" is received for each team
     // "pnw #n X Y O L N" is received for each player
     // "enw #e X Y" is received for each egg
-    println!("Setup scene");
-
-    // plane
-    commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(20., 20.))),
-        MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
-        Ground,
-    ));
-
-    // light
-    commands.spawn((
-        DirectionalLight::default(),
-        Transform::from_translation(Vec3::ONE).looking_at(Vec3::ZERO, Vec3::Y),
-    ));
-
-    // camera
-    commands.spawn((
-        Camera3d::default(),
-        Transform::from_xyz(15.0, 20.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y),
-    ));
-
-    commands
-        .spawn(Text::new("Current pitch: "))
-        .with_child(TextSpan::default());
+    println!("GRAPHIC");
+    // read from stdin and parse the initial game state
+    let mut line = String::new();
+    read_line(&mut line);
+    if line.trim() != "BIENVENUE" {
+        panic!("Expected BIENVENUE, got {}", line);
+    }
+    read_line(&mut line);
+    if !line.starts_with("msz") {
+        panic!("Expected msz, got {}", line);
+    }
+    let msz_parts: Vec<&str> = line.split_whitespace().collect();
+    if msz_parts.len() != 3 {
+        panic!("Invalid msz format");
+    }
+    let map_size = (
+        msz_parts[1].parse::<u32>().unwrap(),
+        msz_parts[2].parse::<u32>().unwrap(),
+    );
+    read_line(&mut line);
+    if !line.starts_with("sgt") {
+        panic!("Expected sgt, got {}", line);
+    }
+    let sgt_parts: Vec<&str> = line.split_whitespace().collect();
+    if sgt_parts.len() != 2 {
+        panic!("Invalid sgt format");
+    }
+    let time_unit = sgt_parts[1].parse::<u32>().unwrap();
+    let mut resources = vec![vec![0; 7]; (map_size.0 * map_size.1) as usize];
+    let mut teams = Vec::new();
+    let mut players = Vec::new();
+    let mut eggs = Vec::new();
+    // read bct lines
+    for _ in 0..(map_size.0 * map_size.1) {
+        read_line(&mut line);
+        if !line.starts_with("bct") {
+            panic!("Expected bct, got {}", line);
+        }
+        let bct_parts: Vec<&str> = line.split_whitespace().collect();
+        if bct_parts.len() != 10 {
+            panic!("Invalid bct format");
+        }
+        let x = bct_parts[1].parse::<u32>().unwrap();
+        let y = bct_parts[2].parse::<u32>().unwrap();
+        let idx = (y * map_size.0 + x) as usize;
+        for i in 0..7 {
+            resources[idx][i] = bct_parts[3 + i].parse::<u32>().unwrap();
+        }
+    }
+    // read tna lines until we get a line that doesn't start with tna
+    read_line(&mut line);
+    while line.starts_with("tna") {
+        let tna_parts: Vec<&str> = line.split_whitespace().collect();
+        if tna_parts.len() != 2 {
+            panic!("Invalid tna format");
+        }
+        teams.push(tna_parts[1].to_string());
+        read_line(&mut line);
+    }
+    // read pnw lines until we get a line that doesn't start with pnw
+    while line.starts_with("pnw") {
+        let pnw_parts: Vec<&str> = line.split_whitespace().collect();
+        if pnw_parts.len() != 7 {
+            panic!("Invalid pnw format");
+        }
+        let player = Player {
+            id: pnw_parts[1].trim_start_matches('#').parse::<u32>().unwrap(),
+            position: (
+                pnw_parts[2].parse::<u32>().unwrap(),
+                pnw_parts[3].parse::<u32>().unwrap(),
+            ),
+            orientation: pnw_parts[4].parse::<u8>().unwrap(),
+            level: pnw_parts[5].parse::<u8>().unwrap(),
+            team: pnw_parts[6].to_string(),
+        };
+        players.push(player);
+        read_line(&mut line);
+    }
+    // read enw lines until we get a line that doesn't start with enw
+    while line.starts_with("enw") {
+        let enw_parts: Vec<&str> = line.split_whitespace().collect();
+        if enw_parts.len() != 4 {
+            panic!("Invalid enw format");
+        }
+        let egg = Egg {
+            id: enw_parts[1].trim_start_matches('#').parse::<u32>().unwrap(),
+            position: (
+                enw_parts[2].parse::<u32>().unwrap(),
+                enw_parts[3].parse::<u32>().unwrap(),
+            ),
+        };
+        eggs.push(egg);
+        read_line(&mut line);
+    }
+    GameState {
+        map_size,
+        time_unit,
+        teams,
+        players,
+        eggs,
+        resources,
+    }
 }
