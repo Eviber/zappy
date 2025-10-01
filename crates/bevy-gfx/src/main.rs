@@ -245,13 +245,6 @@ fn setup(
         ));
     }
 
-    // sphere at the center
-    // commands.spawn((
-    //     Mesh3d(meshes.add(Sphere::default().mesh())),
-    //     MeshMaterial3d(materials.add(Color::srgb(0.2, 0.2, 0.8))),
-    //     Transform::from_translation(CENTER),
-    // ));
-
     // plane
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::default().mesh().size(
@@ -294,6 +287,15 @@ fn read_line(line: &mut String) {
     line.clear();
     std::io::stdin().read_line(line).unwrap();
 }
+
+#[derive(Resource)]
+struct MapSize {
+    width: u32,
+    height: u32,
+}
+
+#[derive(Resource)]
+struct TimeUnit(u32);
 
 fn get_initial_game_state() -> GameState {
     // initial communications, using stdin and stdout for now, later with tcp
