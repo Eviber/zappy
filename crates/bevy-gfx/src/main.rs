@@ -5,8 +5,37 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, setup)
-        .add_systems(Update, (draw_cursor, display_pitch, rotate_camera))
+        .add_systems(
+            Update,
+            (
+                draw_cursor,
+                display_pitch,
+                rotate_camera,
+                draw_grid,
+                draw_axes,
+            ),
+        )
         .run();
+}
+
+/// Draw 3D axes of the players
+fn draw_axes(mut gizmos: Gizmos, query: Query<(&GlobalTransform,), With<Mesh3d>>) {
+    for (transform,) in &query {
+        let length = 1.5;
+        gizmos.axes(*transform, length);
+    }
+}
+
+fn draw_grid(ground: Single<&GlobalTransform, With<Ground>>, mut gizmos: Gizmos) {
+    gizmos.grid(
+        Isometry3d::new(
+            ground.translation(),
+            Quat::from_rotation_arc(Vec3::Z, ground.up().as_vec3()),
+        ),
+        UVec2::new(8, 8),
+        Vec2::splat(5.0),
+        LinearRgba::gray(0.6),
+    );
 }
 
 fn draw_cursor(
@@ -49,6 +78,12 @@ fn draw_cursor(
     );
 }
 
+const CENTER: Vec3 = Vec3 {
+    x: 4. * 5. / 2. - 2.5,
+    y: 0.,
+    z: 4. * 5. / 2. - 2.5,
+};
+
 fn rotate_camera(
     mouse_input: Res<ButtonInput<MouseButton>>,
     mut mouse_motion: EventReader<MouseMotion>,
@@ -65,7 +100,6 @@ fn rotate_camera(
     }
 
     let mut camera_transform = camera_query;
-    let center = Vec3::ZERO; // Center point to rotate around
 
     let min_pitch = 10f32.to_radians();
     let max_pitch = 80f32.to_radians();
@@ -79,7 +113,7 @@ fn rotate_camera(
         let pitch_delta = motion.delta.y * sensitivity;
 
         // Get current position relative to center
-        let current_pos = camera_transform.translation - center;
+        let current_pos = camera_transform.translation - CENTER;
         let distance = current_pos.length();
 
         // Calculate current pitch angle (angle from horizontal plane)
@@ -102,10 +136,10 @@ fn rotate_camera(
         let new_pos = new_pos.normalize() * distance;
 
         // Update camera position
-        camera_transform.translation = center + new_pos;
+        camera_transform.translation = CENTER + new_pos;
 
         // Make camera look at center
-        camera_transform.look_at(center, Vec3::Y);
+        camera_transform.look_at(CENTER, Vec3::Y);
     }
 }
 
@@ -135,6 +169,7 @@ fn display_pitch(
 #[derive(Component)]
 struct Ground;
 
+#[allow(dead_code)]
 #[derive(Debug, Resource)]
 struct GameState {
     map_size: (u32, u32),
@@ -145,6 +180,7 @@ struct GameState {
     resources: Vec<Vec<u32>>, // 2D array for resources in each cell
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct Player {
     id: u32,
@@ -154,6 +190,7 @@ struct Player {
     team: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct Egg {
     id: u32,
@@ -166,7 +203,7 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let game_state = get_initial_game_state();
-    eprintln!("Initial game state: {:#?}", game_state);
+    // eprintln!("Initial game state: {:#?}", game_state);
 
     // commands.insert_resource(game_state);
 
@@ -184,6 +221,13 @@ fn setup(
             )),
         ));
     }
+
+    // sphere at the center
+    // commands.spawn((
+    //     Mesh3d(meshes.add(Sphere::default().mesh())),
+    //     MeshMaterial3d(materials.add(Color::srgb(0.2, 0.2, 0.8))),
+    //     Transform::from_translation(CENTER),
+    // ));
 
     // plane
     commands.spawn((
@@ -203,16 +247,19 @@ fn setup(
     ));
 
     // camera
+    // positioned to look at CENTER with a pitch of 45 degrees from the bottom right corner of the
+    // map with a distance that ensures the whole map is visible (so add some padding)
+    let initial_distance = (delta_x.powi(2) + delta_y.powi(2)).sqrt() + 5.0;
+    let initial_height = initial_distance * (45f32.to_radians().sin());
+    let initial_horizontal_distance = initial_distance * (45f32.to_radians().cos());
+    let initial_position = Vec3::new(
+        delta_x + initial_horizontal_distance / (2f32).sqrt(),
+        initial_height,
+        delta_y + initial_horizontal_distance / (2f32).sqrt(),
+    );
     commands.spawn((
         Camera3d::default(),
-        Transform::from_xyz(-5.0, 10.0, -5.0).looking_at(
-            Vec3 {
-                x: delta_x,
-                y: 0.0,
-                z: delta_y,
-            },
-            Vec3::Y,
-        ),
+        Transform::from_translation(initial_position).looking_at(CENTER, Vec3::Y),
     ));
 
     commands
