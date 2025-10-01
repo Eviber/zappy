@@ -1,4 +1,4 @@
-use bevy::input::mouse::MouseMotion;
+use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::prelude::*;
 
 fn main() {
@@ -11,6 +11,7 @@ fn main() {
                 draw_cursor,
                 display_pitch,
                 rotate_camera,
+                zoom_camera,
                 draw_grid,
                 draw_axes,
             ),
@@ -83,6 +84,28 @@ const CENTER: Vec3 = Vec3 {
     y: 0.,
     z: 4. * 5. / 2. - 2.5,
 };
+
+/// Update the camera distance with the scroll
+fn zoom_camera(
+    mut scroll_events: EventReader<MouseWheel>,
+    mut camera: Single<&mut Transform, With<Camera3d>>,
+) {
+    for event in scroll_events.read() {
+        let scroll_amount = -event.y;
+        let direction = (camera.translation - CENTER).normalize();
+        let zoom_speed = 0.5;
+        camera.translation += direction * scroll_amount * zoom_speed;
+        // Ensure the camera doesn't get too close or too far
+        let min_distance = 5.0;
+        let max_distance = 100.0;
+        let current_distance = (camera.translation - CENTER).length();
+        if current_distance < min_distance {
+            camera.translation = CENTER + direction * min_distance;
+        } else if current_distance > max_distance {
+            camera.translation = CENTER + direction * max_distance;
+        }
+    }
+}
 
 fn rotate_camera(
     mouse_input: Res<ButtonInput<MouseButton>>,
