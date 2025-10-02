@@ -4,7 +4,10 @@ use bevy::prelude::*;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_systems(Startup, setup)
+        .add_message::<UpdateTileContent>()
+        .add_message::<TeamName>()
+        .add_message::<NewPlayer>()
+        .add_systems(Startup, (setup, setup_stdin_reader).chain())
         .add_systems(
             Update,
             (
@@ -14,6 +17,11 @@ fn main() {
                 zoom_camera,
                 draw_grid,
                 draw_axes,
+                (
+                    receive_server_message,
+                    (update_tile_content, add_team, add_player),
+                )
+                    .chain(),
             ),
         )
         .run();
@@ -87,7 +95,7 @@ const CENTER: Vec3 = Vec3 {
 
 /// Update the camera distance with the scroll
 fn zoom_camera(
-    mut scroll_events: EventReader<MouseWheel>,
+    mut scroll_events: MessageReader<MouseWheel>,
     mut camera: Single<&mut Transform, With<Camera3d>>,
 ) {
     for event in scroll_events.read() {
@@ -109,7 +117,7 @@ fn zoom_camera(
 
 fn rotate_camera(
     mouse_input: Res<ButtonInput<MouseButton>>,
-    mut mouse_motion: EventReader<MouseMotion>,
+    mut mouse_motion: MessageReader<MouseMotion>,
     camera_query: Single<&mut Transform, With<Camera3d>>,
     windows: Query<&Window>,
 ) {
@@ -192,65 +200,25 @@ fn display_pitch(
 #[derive(Component)]
 struct Ground;
 
-#[allow(dead_code)]
-#[derive(Debug, Resource)]
-struct GameState {
-    map_size: (u32, u32),
-    time_unit: u32,
-    teams: Vec<String>,
-    players: Vec<Player>,
-    eggs: Vec<Egg>,
-    resources: Vec<Vec<u32>>, // 2D array for resources in each cell
-}
-
-#[allow(dead_code)]
-#[derive(Debug)]
-struct Player {
-    id: u32,
-    position: (u32, u32),
-    orientation: u8,
-    level: u8,
-    team: String,
-}
-
-#[allow(dead_code)]
-#[derive(Debug)]
-struct Egg {
-    id: u32,
-    position: (u32, u32),
-}
-
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let game_state = get_initial_game_state();
-    // eprintln!("Initial game state: {:#?}", game_state);
+    let map_size = get_game_parameters(&mut commands);
 
-    // commands.insert_resource(game_state);
-
-    let delta_x = game_state.map_size.0 as f32 * 5. / 2.;
-    let delta_y = game_state.map_size.1 as f32 * 5. / 2.;
-
-    for player in &game_state.players {
-        commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(0.8, 1.5, 0.8).mesh())),
-            MeshMaterial3d(materials.add(Color::srgb(0.8, 0.2, 0.2))),
-            Transform::from_translation(Vec3::new(
-                player.position.0 as f32 * 5.,
-                0.75,
-                player.position.1 as f32 * 5.,
-            )),
-        ));
-    }
+    let delta_x = map_size.width as f32 * 5. / 2.;
+    let delta_y = map_size.height as f32 * 5. / 2.;
 
     // plane
     commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(
-            game_state.map_size.0 as f32 * 5.,
-            game_state.map_size.1 as f32 * 5.,
-        ))),
+        Mesh3d(
+            meshes.add(
+                Plane3d::default()
+                    .mesh()
+                    .size(map_size.width as f32 * 5., map_size.height as f32 * 5.),
+            ),
+        ),
         MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
         Transform::from_xyz(delta_x - 2.5, 0.0, delta_y - 2.5),
         Ground,
@@ -288,16 +256,17 @@ fn read_line(line: &mut String) {
     std::io::stdin().read_line(line).unwrap();
 }
 
-#[derive(Resource)]
+#[derive(Clone, Copy, Debug, Resource)]
 struct MapSize {
     width: u32,
     height: u32,
 }
 
+#[allow(dead_code)]
 #[derive(Resource)]
 struct TimeUnit(u32);
 
-fn get_initial_game_state() -> GameState {
+fn get_game_parameters(commands: &mut Commands) -> MapSize {
     // initial communications, using stdin and stdout for now, later with tcp
 
     // Symbol Meaning
@@ -337,10 +306,11 @@ fn get_initial_game_state() -> GameState {
     if msz_parts.len() != 3 {
         panic!("Invalid msz format");
     }
-    let map_size = (
-        msz_parts[1].parse::<u32>().unwrap(),
-        msz_parts[2].parse::<u32>().unwrap(),
-    );
+    let map_size = MapSize {
+        width: msz_parts[1].parse::<u32>().unwrap(),
+        height: msz_parts[2].parse::<u32>().unwrap(),
+    };
+    commands.insert_resource(map_size);
     read_line(&mut line);
     if !line.starts_with("sgt") {
         panic!("Expected sgt, got {}", line);
@@ -350,78 +320,178 @@ fn get_initial_game_state() -> GameState {
         panic!("Invalid sgt format");
     }
     let time_unit = sgt_parts[1].parse::<u32>().unwrap();
-    let mut resources = vec![vec![0; 7]; (map_size.0 * map_size.1) as usize];
-    let mut teams = Vec::new();
-    let mut players = Vec::new();
-    let mut eggs = Vec::new();
-    // read bct lines
-    for _ in 0..(map_size.0 * map_size.1) {
-        read_line(&mut line);
-        if !line.starts_with("bct") {
-            panic!("Expected bct, got {}", line);
-        }
-        let bct_parts: Vec<&str> = line.split_whitespace().collect();
-        if bct_parts.len() != 10 {
-            panic!("Invalid bct format");
-        }
-        let x = bct_parts[1].parse::<u32>().unwrap();
-        let y = bct_parts[2].parse::<u32>().unwrap();
-        let idx = (y * map_size.0 + x) as usize;
-        for i in 0..7 {
-            resources[idx][i] = bct_parts[3 + i].parse::<u32>().unwrap();
+    commands.insert_resource(TimeUnit(time_unit));
+    map_size
+}
+
+use std::io::{self, BufRead, BufReader};
+
+#[derive(Resource)]
+struct StdinReader {
+    reader: BufReader<io::Stdin>,
+    buffer: String,
+}
+
+enum ServerMessage {
+    TileContent(UpdateTileContent),
+    TeamName(String),
+    PlayerNew(NewPlayer),
+}
+
+#[derive(Message)]
+struct UpdateTileContent {
+    x: usize,
+    y: usize,
+    resources: [u32; 7],
+}
+
+#[derive(Message)]
+struct TeamName(String);
+
+#[derive(Message)]
+struct NewPlayer {
+    id: u32,
+    x: usize,
+    y: usize,
+    orientation: u8,
+    level: u32,
+    team: String,
+}
+
+fn setup_stdin_reader(mut commands: Commands) {
+    let stdin = io::stdin();
+
+    // Set stdin to non-blocking mode
+    #[cfg(unix)]
+    {
+        use nix::fcntl::{fcntl, FcntlArg, OFlag};
+        let flags = fcntl(&stdin, FcntlArg::F_GETFL).unwrap();
+        let mut flags = OFlag::from_bits_truncate(flags);
+        flags.insert(OFlag::O_NONBLOCK);
+        fcntl(&stdin, FcntlArg::F_SETFL(flags)).unwrap();
+    }
+
+    commands.insert_resource(StdinReader {
+        reader: BufReader::new(stdin),
+        buffer: String::new(),
+    });
+}
+
+fn receive_server_message(
+    mut reader: ResMut<StdinReader>,
+    mut update_tile_content_writer: MessageWriter<UpdateTileContent>,
+    mut team_name_writer: MessageWriter<TeamName>,
+    mut new_player_writer: MessageWriter<NewPlayer>,
+) {
+    loop {
+        reader.buffer.clear();
+
+        // Split the borrow to avoid multiple mutable borrows
+        let StdinReader {
+            reader: buf_reader,
+            buffer,
+        } = &mut *reader;
+
+        match buf_reader.read_line(buffer) {
+            Ok(0) => break, // EOF
+            Ok(_) => {
+                let line = buffer.trim_end().to_string();
+                if line.is_empty() {
+                    continue;
+                }
+                let msg = match line.parse::<ServerMessage>() {
+                    Ok(msg) => msg,
+                    Err(e) => {
+                        error!("Failed to parse server message: {}: {}", line, e);
+                        continue;
+                    }
+                };
+                match msg {
+                    ServerMessage::TileContent(utc) => {
+                        update_tile_content_writer.write(utc);
+                    }
+                    ServerMessage::TeamName(name) => {
+                        team_name_writer.write(TeamName(name));
+                    }
+                    ServerMessage::PlayerNew(np) => {
+                        new_player_writer.write(np);
+                    }
+                }
+            }
+            Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                // No data available right now, that's fine
+                break;
+            }
+            Err(e) => {
+                error!("Error reading stdin: {}", e);
+                break;
+            }
         }
     }
-    // read tna lines until we get a line that doesn't start with tna
-    read_line(&mut line);
-    while line.starts_with("tna") {
-        let tna_parts: Vec<&str> = line.split_whitespace().collect();
-        if tna_parts.len() != 2 {
-            panic!("Invalid tna format");
-        }
-        teams.push(tna_parts[1].to_string());
-        read_line(&mut line);
+}
+
+fn update_tile_content(mut reader: MessageReader<UpdateTileContent>) {
+    for msg in reader.read() {
+        info!("Tile ({}, {}) resources: {:?}", msg.x, msg.y, msg.resources);
     }
-    // read pnw lines until we get a line that doesn't start with pnw
-    while line.starts_with("pnw") {
-        let pnw_parts: Vec<&str> = line.split_whitespace().collect();
-        if pnw_parts.len() != 7 {
-            panic!("Invalid pnw format");
-        }
-        let player = Player {
-            id: pnw_parts[1].trim_start_matches('#').parse::<u32>().unwrap(),
-            position: (
-                pnw_parts[2].parse::<u32>().unwrap(),
-                pnw_parts[3].parse::<u32>().unwrap(),
-            ),
-            orientation: pnw_parts[4].parse::<u8>().unwrap(),
-            level: pnw_parts[5].parse::<u8>().unwrap(),
-            team: pnw_parts[6].to_string(),
-        };
-        players.push(player);
-        read_line(&mut line);
+}
+
+fn add_team(mut reader: MessageReader<TeamName>) {
+    for msg in reader.read() {
+        info!("Team name: {}", msg.0);
     }
-    // read enw lines until we get a line that doesn't start with enw
-    while line.starts_with("enw") {
-        let enw_parts: Vec<&str> = line.split_whitespace().collect();
-        if enw_parts.len() != 4 {
-            panic!("Invalid enw format");
-        }
-        let egg = Egg {
-            id: enw_parts[1].trim_start_matches('#').parse::<u32>().unwrap(),
-            position: (
-                enw_parts[2].parse::<u32>().unwrap(),
-                enw_parts[3].parse::<u32>().unwrap(),
-            ),
-        };
-        eggs.push(egg);
-        read_line(&mut line);
+}
+
+fn add_player(
+    mut reader: MessageReader<NewPlayer>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    for msg in reader.read() {
+        commands.spawn((
+            Mesh3d(meshes.add(Cuboid::new(0.8, 1.5, 0.8).mesh())),
+            MeshMaterial3d(materials.add(Color::srgb(0.8, 0.2, 0.2))),
+            Transform::from_translation(Vec3::new(msg.x as f32 * 5., 0.75, msg.y as f32 * 5.)),
+        ));
+        info!("Added player #{}", msg.id);
     }
-    GameState {
-        map_size,
-        time_unit,
-        teams,
-        players,
-        eggs,
-        resources,
+}
+
+impl std::str::FromStr for ServerMessage {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let int_parse_error = |e: std::num::ParseIntError| e.to_string();
+        let parts: Vec<&str> = s.split_whitespace().collect();
+        match parts.as_slice() {
+            ["bct", x, y, r0, r1, r2, r3, r4, r5, r6] => {
+                Ok(ServerMessage::TileContent(UpdateTileContent {
+                    x: x.parse().map_err(int_parse_error)?,
+                    y: y.parse().map_err(int_parse_error)?,
+                    resources: [
+                        r0.parse().map_err(int_parse_error)?,
+                        r1.parse().map_err(int_parse_error)?,
+                        r2.parse().map_err(int_parse_error)?,
+                        r3.parse().map_err(int_parse_error)?,
+                        r4.parse().map_err(int_parse_error)?,
+                        r5.parse().map_err(int_parse_error)?,
+                        r6.parse().map_err(int_parse_error)?,
+                    ],
+                }))
+            }
+            ["tna", team_name] => Ok(ServerMessage::TeamName(team_name.to_string())),
+            ["pnw", id, x, y, orientation, level, team] => {
+                Ok(ServerMessage::PlayerNew(NewPlayer {
+                    id: id.parse().map_err(int_parse_error)?,
+                    x: x.parse().map_err(int_parse_error)?,
+                    y: y.parse().map_err(int_parse_error)?,
+                    orientation: orientation.parse().map_err(int_parse_error)?,
+                    level: level.parse().map_err(int_parse_error)?,
+                    team: team.to_string(),
+                }))
+            }
+            _ => Err(format!("Unrecognized message format: {}", s)),
+        }
     }
 }
