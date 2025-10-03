@@ -1,11 +1,42 @@
+// initial communications, using stdin and stdout for now, later with tcp
+
+// Symbol Meaning
+// X Width or horizontal position
+// Y Height or vertical position
+// N Team name
+// q Quantity
+// R Incantation result
+// n Player number
+// M Message
+// O Orientation (N:1, E:2, S:3, O:4)
+// i Resource number
+// L Player level or incantation level
+// e Egg number
+// T Time unit
+
+// read one line that should be "BIENVENUE"
+// sends "GRAPHIC"
+// "msz X Y" is received (map size)
+// "sgt T" is received (time unit)
+// "bct X Y q q q q q q q q q" is received for each cell of the map
+// "tna N" is received for each team
+// "pnw #n X Y O L N" is received for each player
+// "enw #e X Y" is received for each egg
+// read from stdin and parse the initial game state
+
 use bevy::prelude::*;
 use std::io::{self, BufRead, BufReader};
 
-pub struct ServerCommunication;
+pub struct ServerCommunicationPlugin;
 
-impl Plugin for ServerCommunication {
+impl Plugin for ServerCommunicationPlugin {
     fn build(&self, app: &mut App) {
-        // app.add_systems(Startup, setup_stdin_reader);
+        app.add_systems(Startup, setup_stdin_reader);
+        app.add_message::<UpdateMapSize>();
+        app.add_message::<UpdateGameTick>();
+        app.add_message::<UpdateTileContent>();
+        app.add_message::<TeamName>();
+        app.add_message::<NewPlayer>();
         app.add_systems(PreUpdate, receive_server_message);
     }
 }
@@ -17,10 +48,21 @@ struct StdinReader {
 }
 
 enum ServerMessage {
+    MapSize(UpdateMapSize),
+    GameTick(UpdateGameTick),
     TileContent(UpdateTileContent),
     TeamName(String),
     PlayerNew(NewPlayer),
 }
+
+#[derive(Message)]
+pub struct UpdateMapSize {
+    pub width: usize,
+    pub height: usize,
+}
+
+#[derive(Message)]
+pub struct UpdateGameTick(pub u32);
 
 #[derive(Message)]
 pub struct UpdateTileContent {
@@ -48,7 +90,7 @@ pub fn setup_stdin_reader(mut commands: Commands) {
     // Set stdin to non-blocking mode
     #[cfg(unix)]
     {
-        use nix::fcntl::{FcntlArg, OFlag, fcntl};
+        use nix::fcntl::*;
         let flags = fcntl(&stdin, FcntlArg::F_GETFL).unwrap();
         let mut flags = OFlag::from_bits_truncate(flags);
         flags.insert(OFlag::O_NONBLOCK);
@@ -63,6 +105,8 @@ pub fn setup_stdin_reader(mut commands: Commands) {
 
 fn receive_server_message(
     mut reader: ResMut<StdinReader>,
+    mut map_size_writer: MessageWriter<UpdateMapSize>,
+    mut game_tick_writer: MessageWriter<UpdateGameTick>,
     mut update_tile_content_writer: MessageWriter<UpdateTileContent>,
     mut team_name_writer: MessageWriter<TeamName>,
     mut new_player_writer: MessageWriter<NewPlayer>,
@@ -83,6 +127,11 @@ fn receive_server_message(
                 if line.is_empty() {
                     continue;
                 }
+                if line == "BIENVENUE" {
+                    println!("GRAPHIC");
+                    // TODO: wipe state?
+                    continue;
+                }
                 let msg = match line.parse::<ServerMessage>() {
                     Ok(msg) => msg,
                     Err(e) => {
@@ -91,6 +140,12 @@ fn receive_server_message(
                     }
                 };
                 match msg {
+                    ServerMessage::MapSize(map_size) => {
+                        map_size_writer.write(map_size);
+                    }
+                    ServerMessage::GameTick(game_tick) => {
+                        game_tick_writer.write(game_tick);
+                    }
                     ServerMessage::TileContent(utc) => {
                         update_tile_content_writer.write(utc);
                     }
@@ -121,6 +176,13 @@ impl std::str::FromStr for ServerMessage {
         let int_parse_error = |e: std::num::ParseIntError| e.to_string();
         let parts: Vec<&str> = s.split_whitespace().collect();
         match parts.as_slice() {
+            ["msz", width, height] => Ok(ServerMessage::MapSize(UpdateMapSize {
+                width: width.parse().map_err(int_parse_error)?,
+                height: height.parse().map_err(int_parse_error)?,
+            })),
+            ["sgt", tick] => Ok(ServerMessage::GameTick(UpdateGameTick(
+                tick.parse().map_err(int_parse_error)?,
+            ))),
             ["bct", x, y, r0, r1, r2, r3, r4, r5, r6] => {
                 Ok(ServerMessage::TileContent(UpdateTileContent {
                     x: x.parse().map_err(int_parse_error)?,
