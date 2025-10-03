@@ -3,7 +3,7 @@ mod server_communication;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::prelude::*;
 use server_communication::{
-    setup_stdin_reader, NewPlayer, ServerCommunication, TeamName, UpdateTileContent,
+    NewPlayer, ServerCommunication, TeamName, UpdateTileContent, setup_stdin_reader,
 };
 
 fn main() {
