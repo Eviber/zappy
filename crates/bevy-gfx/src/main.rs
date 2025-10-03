@@ -55,7 +55,12 @@ fn setup(
     // light
     commands.spawn((
         DirectionalLight::default(),
-        Transform::from_translation(Vec3::ONE).looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::from_translation(Vec3 {
+            x: -10.0,
+            y: 10.0,
+            z: -10.0,
+        })
+        .looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
     // camera
