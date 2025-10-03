@@ -48,7 +48,7 @@ pub fn setup_stdin_reader(mut commands: Commands) {
     // Set stdin to non-blocking mode
     #[cfg(unix)]
     {
-        use nix::fcntl::{fcntl, FcntlArg, OFlag};
+        use nix::fcntl::{FcntlArg, OFlag, fcntl};
         let flags = fcntl(&stdin, FcntlArg::F_GETFL).unwrap();
         let mut flags = OFlag::from_bits_truncate(flags);
         flags.insert(OFlag::O_NONBLOCK);
