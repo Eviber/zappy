@@ -2,27 +2,23 @@ mod server_communication;
 
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::prelude::*;
-use server_communication::{
-    NewPlayer, ServerCommunication, TeamName, UpdateTileContent, setup_stdin_reader,
-};
+use server_communication::*;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(ServerCommunication)
-        .add_message::<UpdateTileContent>()
-        .add_message::<TeamName>()
-        .add_message::<NewPlayer>()
-        .add_systems(Startup, (setup, setup_stdin_reader).chain())
+        .add_plugins(ServerCommunicationPlugin)
+        .add_systems(Startup, setup)
         .add_systems(
             Update,
             (
                 draw_cursor,
-                display_pitch,
                 rotate_camera,
                 zoom_camera,
                 draw_grid,
                 draw_axes,
+                update_map_size,
+                update_game_tick,
                 update_tile_content,
                 add_team,
                 add_player,
@@ -46,7 +42,7 @@ fn draw_grid(ground: Single<&GlobalTransform, With<Ground>>, mut gizmos: Gizmos)
             Quat::from_rotation_arc(Vec3::Z, ground.up().as_vec3()),
         ),
         UVec2::new(8, 8),
-        Vec2::splat(5.0),
+        Vec2::splat(TILE_SIZE),
         LinearRgba::gray(0.6),
     );
 }
@@ -105,7 +101,7 @@ fn zoom_camera(
     for event in scroll_events.read() {
         let scroll_amount = -event.y;
         let direction = (camera.translation - CENTER).normalize();
-        let zoom_speed = 0.5;
+        let zoom_speed = 1.0;
         camera.translation += direction * scroll_amount * zoom_speed;
         // Ensure the camera doesn't get too close or too far
         let min_distance = 5.0;
@@ -178,29 +174,6 @@ fn rotate_camera(
     }
 }
 
-fn display_pitch(
-    camera_query: Single<&Transform, With<Camera3d>>,
-    mut gizmos: Gizmos,
-    mut query: Single<&mut TextSpan>,
-) {
-    let camera_transform = *camera_query;
-    let center = Vec3::ZERO;
-
-    // Calculate current pitch angle
-    let current_pos = camera_transform.translation - center;
-    let distance = current_pos.length();
-    let current_pitch = (current_pos.y / distance).asin();
-
-    // Convert to degrees for easier reading
-    let pitch_degrees = current_pitch.to_degrees();
-
-    // Display the pitch angle as text using gizmos
-    let text_pos = Vec3::new(-8.0, 8.0, 0.0);
-    gizmos.ray(text_pos, Vec3::X * 0.1, Color::srgb(1.0, 0.0, 0.0));
-
-    ***query = format!("{:.1}°", pitch_degrees);
-}
-
 #[derive(Component)]
 struct Ground;
 
@@ -209,22 +182,18 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let map_size = get_game_parameters(&mut commands);
-
-    let delta_x = map_size.width as f32 * 5. / 2.;
-    let delta_y = map_size.height as f32 * 5. / 2.;
+    let map_size = MapSize {
+        width: 0,
+        height: 0,
+    };
+    commands.insert_resource(map_size);
+    commands.insert_resource(TimeUnit(0));
 
     // plane
     commands.spawn((
-        Mesh3d(
-            meshes.add(
-                Plane3d::default()
-                    .mesh()
-                    .size(map_size.width as f32 * 5., map_size.height as f32 * 5.),
-            ),
-        ),
+        Mesh3d(meshes.add(Plane3d::default().mesh())),
         MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
-        Transform::from_xyz(delta_x - 2.5, 0.0, delta_y - 2.5),
+        Transform::default(),
         Ground,
     ));
 
@@ -235,97 +204,57 @@ fn setup(
     ));
 
     // camera
-    // positioned to look at CENTER with a pitch of 45 degrees from the bottom right corner of the
-    // map with a distance that ensures the whole map is visible (so add some padding)
-    let initial_distance = (delta_x.powi(2) + delta_y.powi(2)).sqrt() + 5.0;
-    let initial_height = initial_distance * (45f32.to_radians().sin());
-    let initial_horizontal_distance = initial_distance * (45f32.to_radians().cos());
-    let initial_position = Vec3::new(
-        delta_x + initial_horizontal_distance / (2f32).sqrt(),
-        initial_height,
-        delta_y + initial_horizontal_distance / (2f32).sqrt(),
-    );
-    commands.spawn((
-        Camera3d::default(),
-        Transform::from_translation(initial_position).looking_at(CENTER, Vec3::Y),
-    ));
-
-    commands
-        .spawn(Text::new("Current pitch: "))
-        .with_child(TextSpan::default());
-}
-
-fn read_line(line: &mut String) {
-    line.clear();
-    std::io::stdin().read_line(line).unwrap();
+    commands.spawn((Camera3d::default(), Transform::default()));
 }
 
 #[derive(Clone, Copy, Debug, Resource)]
 struct MapSize {
-    width: u32,
-    height: u32,
+    width: usize,
+    height: usize,
 }
 
 #[allow(dead_code)]
 #[derive(Resource)]
 struct TimeUnit(u32);
 
-fn get_game_parameters(commands: &mut Commands) -> MapSize {
-    // initial communications, using stdin and stdout for now, later with tcp
+const TILE_SIZE: f32 = 5.0;
 
-    // Symbol Meaning
-    // X Width or horizontal position
-    // Y Height or vertical position
-    // N Team name
-    // q Quantity
-    // R Incantation result
-    // n Player number
-    // M Message
-    // O Orientation (N:1, E:2, S:3, O:4)
-    // i Resource number
-    // L Player level or incantation level
-    // e Egg number
-    // T Time unit
+fn update_map_size(
+    mut reader: MessageReader<UpdateMapSize>,
+    mut map_size: ResMut<MapSize>,
+    mut ground: Single<(&mut Transform, &mut Mesh3d), With<Ground>>,
+    mut camera: Single<&mut Transform, (With<Camera3d>, Without<Ground>)>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    for msg in reader.read() {
+        info!("Map size updated: {}x{}", msg.width, msg.height);
+        map_size.width = msg.width;
+        map_size.height = msg.height;
+        let plane_width = map_size.width as f32 * TILE_SIZE;
+        let plane_height = map_size.height as f32 * TILE_SIZE;
+        let delta_x = plane_width / 2. - TILE_SIZE / 2.;
+        let delta_y = plane_height / 2. - TILE_SIZE / 2.;
+        *ground.1 = Mesh3d(meshes.add(Plane3d::default().mesh().size(plane_width, plane_height)));
+        ground.0.translation = Vec3::new(delta_x, 0.0, delta_y);
+        // reposition camera to still look at center of the map
+        let initial_distance = (delta_x.powi(2) + delta_y.powi(2)).sqrt() + 5.0;
+        let initial_height = initial_distance * (45f32.to_radians().sin());
+        let initial_horizontal_distance = initial_distance * (45f32.to_radians().cos());
+        let initial_position = Vec3::new(
+            delta_x + initial_horizontal_distance / (2f32).sqrt(),
+            initial_height,
+            delta_y + initial_horizontal_distance / (2f32).sqrt(),
+        );
+        camera.translation = initial_position;
+        camera.look_at(CENTER, Vec3::Y);
+    }
+}
 
-    // read one line that should be "BIENVENUE"
-    // sends "GRAPHIC"
-    // "msz X Y" is received (map size)
-    // "sgt T" is received (time unit)
-    // "bct X Y q q q q q q q q q" is received for each cell of the map
-    // "tna N" is received for each team
-    // "pnw #n X Y O L N" is received for each player
-    // "enw #e X Y" is received for each egg
-    println!("GRAPHIC");
-    // read from stdin and parse the initial game state
-    let mut line = String::new();
-    read_line(&mut line);
-    if line.trim() != "BIENVENUE" {
-        panic!("Expected BIENVENUE, got {}", line);
+fn update_game_tick(mut reader: MessageReader<UpdateGameTick>, mut time_unit: ResMut<TimeUnit>) {
+    for msg in reader.read() {
+        info!("Game tick updated: {}", msg.0);
+        time_unit.0 = msg.0;
     }
-    read_line(&mut line);
-    if !line.starts_with("msz") {
-        panic!("Expected msz, got {}", line);
-    }
-    let msz_parts: Vec<&str> = line.split_whitespace().collect();
-    if msz_parts.len() != 3 {
-        panic!("Invalid msz format");
-    }
-    let map_size = MapSize {
-        width: msz_parts[1].parse::<u32>().unwrap(),
-        height: msz_parts[2].parse::<u32>().unwrap(),
-    };
-    commands.insert_resource(map_size);
-    read_line(&mut line);
-    if !line.starts_with("sgt") {
-        panic!("Expected sgt, got {}", line);
-    }
-    let sgt_parts: Vec<&str> = line.split_whitespace().collect();
-    if sgt_parts.len() != 2 {
-        panic!("Invalid sgt format");
-    }
-    let time_unit = sgt_parts[1].parse::<u32>().unwrap();
-    commands.insert_resource(TimeUnit(time_unit));
-    map_size
 }
 
 fn update_tile_content(mut reader: MessageReader<UpdateTileContent>) {
