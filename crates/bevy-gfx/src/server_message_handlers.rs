@@ -169,6 +169,12 @@ fn add_team(mut reader: MessageReader<TeamName>) {
     }
 }
 
+#[derive(Component)]
+struct Level(u32);
+
+#[derive(Component)]
+struct Team(String);
+
 fn add_player(
     mut reader: MessageReader<NewPlayer>,
     mut commands: Commands,
@@ -176,11 +182,25 @@ fn add_player(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     for msg in reader.read() {
+        let rotation = match msg.orientation {
+            1 => Quat::from_rotation_y(0.),                           // North
+            2 => Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2), // East
+            3 => Quat::from_rotation_y(std::f32::consts::PI),         // South
+            4 => Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),  // West
+            _ => panic!("Invalid orientation"),
+        };
+        let transform = Transform {
+            translation: Vec3::new(msg.x as f32 * TILE_SIZE, 0.75, msg.y as f32 * TILE_SIZE),
+            rotation,
+            ..Default::default()
+        };
         commands.spawn((
             Mesh3d(meshes.add(Cuboid::new(0.8, 1.5, 0.8).mesh())),
             MeshMaterial3d(materials.add(Color::srgb(0.8, 0.2, 0.2))),
-            Transform::from_translation(Vec3::new(msg.x as f32 * 5., 0.75, msg.y as f32 * 5.)),
+            transform,
             Player,
+            Level(msg.level),
+            Team(msg.team.clone()),
         ));
         info!("Added player #{}", msg.id);
     }
