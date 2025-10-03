@@ -68,7 +68,7 @@ pub struct UpdateGameTick(pub u32);
 pub struct UpdateTileContent {
     pub x: usize,
     pub y: usize,
-    pub resources: [u32; 7],
+    pub items: [u32; 7],
 }
 
 #[derive(Message)]
@@ -187,7 +187,7 @@ impl std::str::FromStr for ServerMessage {
                 Ok(ServerMessage::TileContent(UpdateTileContent {
                     x: x.parse().map_err(int_parse_error)?,
                     y: y.parse().map_err(int_parse_error)?,
-                    resources: [
+                    items: [
                         r0.parse().map_err(int_parse_error)?,
                         r1.parse().map_err(int_parse_error)?,
                         r2.parse().map_err(int_parse_error)?,
