@@ -9,6 +9,6 @@ publish.workspace = true
 
 [dependencies]
 bevy = "0.17"
-log = { version = "*", features = ["max_level_debug", "release_max_level_warn"] }
+log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 nix = { version = "0.30", features = ["fs"] }
 rand = "0.9"
