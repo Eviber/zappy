@@ -9,6 +9,7 @@ pub(crate) struct ServerMessageHandlersPlugin;
 
 impl Plugin for ServerMessageHandlersPlugin {
     fn build(&self, app: &mut App) {
+        app.insert_resource(TileStacks::default());
         app.add_plugins(ServerCommunicationPlugin);
         app.add_systems(
             Update,
@@ -23,7 +24,7 @@ impl Plugin for ServerMessageHandlersPlugin {
     }
 }
 
-pub(crate) fn update_map_size(
+fn update_map_size(
     mut reader: MessageReader<UpdateMapSize>,
     mut map_size: ResMut<MapSize>,
     mut ground: Single<(&mut Transform, &mut Mesh3d), With<Ground>>,
@@ -59,29 +60,116 @@ pub(crate) fn update_map_size(
     }
 }
 
-pub(crate) fn update_game_tick(
-    mut reader: MessageReader<UpdateGameTick>,
-    mut time_unit: ResMut<TimeUnit>,
-) {
+fn update_game_tick(mut reader: MessageReader<UpdateGameTick>, mut time_unit: ResMut<TimeUnit>) {
     for msg in reader.read() {
         info!("Game tick updated: {}", msg.0);
         time_unit.0 = msg.0;
     }
 }
 
-pub(crate) fn update_tile_content(mut reader: MessageReader<UpdateTileContent>) {
-    for msg in reader.read() {
-        info!("Tile ({}, {}) resources: {:?}", msg.x, msg.y, msg.resources);
+#[derive(Clone, Copy, Component)]
+enum Item {
+    Nourriture,
+    Linemate,
+    Deraumère,
+    Sibur,
+    Mendiane,
+    Phiras,
+    Thystame,
+}
+
+impl Item {
+    fn from_index(index: usize) -> Self {
+        match index {
+            0 => Item::Nourriture,
+            1 => Item::Linemate,
+            2 => Item::Deraumère,
+            3 => Item::Sibur,
+            4 => Item::Mendiane,
+            5 => Item::Phiras,
+            6 => Item::Thystame,
+            _ => panic!("Invalid resource index"),
+        }
+    }
+
+    fn color(self) -> Color {
+        match self {
+            Item::Nourriture => Color::srgb(0.8, 0.8, 0.2),
+            Item::Linemate => Color::srgb(0.5, 0.5, 0.5),
+            Item::Deraumère => Color::srgb(0.2, 0.8, 0.2),
+            Item::Sibur => Color::srgb(0.2, 0.2, 0.8),
+            Item::Mendiane => Color::srgb(0.8, 0.2, 0.8),
+            Item::Phiras => Color::srgb(0.5, 0.2, 0.2),
+            Item::Thystame => Color::srgb(0.2, 0.8, 0.8),
+        }
+    }
+
+    fn delta_vec(self) -> Vec3 {
+        // around the center of the tile, using TILE_SIZE
+        let delta = TILE_SIZE / 4.;
+        match self {
+            Item::Nourriture => Vec3::new(-delta, 0., -delta),
+            Item::Linemate => Vec3::new(0., 0., -delta),
+            Item::Deraumère => Vec3::new(delta, 0., -delta),
+            Item::Sibur => Vec3::new(-delta, 0., 0.),
+            Item::Mendiane => Vec3::new(delta, 0., 0.),
+            Item::Phiras => Vec3::new(-delta, 0., delta),
+            Item::Thystame => Vec3::new(delta, 0., delta),
+        }
     }
 }
 
-pub(crate) fn add_team(mut reader: MessageReader<TeamName>) {
+#[derive(Resource, Default)]
+struct TileStacks(std::collections::HashMap<(usize, usize), [Vec<Entity>; 7]>);
+
+fn update_tile_content(
+    mut reader: MessageReader<UpdateTileContent>,
+    mut commands: Commands,
+    mut stacks: ResMut<TileStacks>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    for msg in reader.read() {
+        info!("Tile ({}, {}) resources: {:?}", msg.x, msg.y, msg.items);
+        let tile_pos = (msg.x, msg.y);
+        let stack = stacks.0.entry(tile_pos).or_default();
+        // Remove existing entities
+        for entity in stack.iter_mut().flat_map(|v| v.drain(..)) {
+            commands.entity(entity).despawn();
+        }
+        // Add new resources
+        for (index, &count) in msg.items.iter().enumerate() {
+            let resource_type = Item::from_index(index);
+            for _ in 0..count {
+                let delta = resource_type.delta_vec();
+                let entity = commands
+                    .spawn((
+                        resource_type,
+                        Transform::from_translation(
+                            delta
+                                + Vec3::new(
+                                    msg.x as f32 * TILE_SIZE,
+                                    0.1 + stack[index].len() as f32 * 0.15,
+                                    msg.y as f32 * TILE_SIZE,
+                                ),
+                        ),
+                        Mesh3d(meshes.add(Cuboid::new(0.2, 0.1, 0.2).mesh())),
+                        MeshMaterial3d(materials.add(resource_type.color())),
+                    ))
+                    .id();
+                stack[index].push(entity);
+            }
+        }
+    }
+}
+
+fn add_team(mut reader: MessageReader<TeamName>) {
     for msg in reader.read() {
         info!("Team name: {}", msg.0);
     }
 }
 
-pub(crate) fn add_player(
+fn add_player(
     mut reader: MessageReader<NewPlayer>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
