@@ -74,6 +74,12 @@ impl Command {
 pub enum Response {
     /// The string `"ok"`.
     Ok,
+	/// The string `"ko"`.
+	Ko,
+	/// Inventory of the player
+	Inventory([u32; 7]),
+	/// What the player sees
+	Sight([[u32; 7]; 81]),
     /// The number of available slots in the team.
     ConnectNbr(u32),
 }
@@ -83,6 +89,15 @@ impl Response {
     pub async fn send_to(&self, fd: ft::Fd, buf: &mut String) -> ft::Result<()> {
         match self {
             Response::Ok => ft_async::futures::write_all(fd, b"ok\n").await?,
+            Response::Ko => ft_async::futures::write_all(fd, b"ko\n").await?,
+            Response::Inventory(inventory) => {
+                let result = writeln!(buf, "{{nourriture {}, linemate {}, deraumere {}, sibur {}, mendiane {}, phiras {}, thystame {}}}", inventory[0], inventory[1], inventory[2], inventory[3], inventory[4], inventory[5], inventory[6]);
+                debug_assert!(result.is_ok(), "writing to a string should never fail");
+                ft_async::futures::write_all(fd, buf.as_bytes()).await?
+			},
+			Response::Sight(sight) => {
+				ft_async::futures::write_all(fd, b"voir... todo\n").await?
+			},
             Response::ConnectNbr(nbr) => {
                 // NOTE: This cannot fail because writing to a string in this way will panic in case
                 // of memory allocation failure instead of returning an error.
@@ -163,6 +178,9 @@ pub struct PlayerState {
     commands: ArrayVec<ScheduledCommand, 10>,
     /// A direction in which the player is facing.
     facing: PlayerDirection,
+	/// Current inventory of the player on the inventory axis.
+	/// Indices follow world::ObjectClass order...
+	inventory: [u32; 7],
     /// Current position of the player on the horizontal axis.
     x: u32,
     /// Current position of the player on the vertical axis.
@@ -287,6 +305,7 @@ impl State {
                 3 => PlayerDirection::West,
                 _ => unreachable!(),
             },
+			inventory: [0; 7],
             x: self.rng.next_u64() as u32 % self.world.width,
             y: self.rng.next_u64() as u32 % self.world.height,
         }));
@@ -342,7 +361,10 @@ impl State {
                 player.advance_position(self.world.width, self.world.height);
                 Response::Ok
             }
-            _ => Response::Ok,
+			Command::Inventory => {
+				Response::Inventory(player.inventory)
+			}
+            _ => Response::Ko,
         }
     }
 
