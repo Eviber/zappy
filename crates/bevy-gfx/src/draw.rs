@@ -2,6 +2,7 @@ use super::TILE_SIZE;
 use bevy::prelude::*;
 
 use super::Ground;
+use super::Player;
 
 pub(crate) struct DrawPlugin;
 
@@ -12,7 +13,7 @@ impl Plugin for DrawPlugin {
 }
 
 /// Draw 3D axes of the players
-pub(crate) fn axes(mut gizmos: Gizmos, query: Query<(&GlobalTransform,), With<Mesh3d>>) {
+pub(crate) fn axes(mut gizmos: Gizmos, query: Query<(&GlobalTransform,), With<Player>>) {
     for (transform,) in &query {
         let length = 1.5;
         gizmos.axes(*transform, length);

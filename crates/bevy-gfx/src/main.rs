@@ -17,6 +17,9 @@ struct TimeUnit(u32);
 #[derive(Component)]
 struct Ground;
 
+#[derive(Component)]
+struct Player;
+
 const TILE_SIZE: f32 = 5.0;
 
 fn main() {

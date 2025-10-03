@@ -92,6 +92,7 @@ pub(crate) fn add_player(
             Mesh3d(meshes.add(Cuboid::new(0.8, 1.5, 0.8).mesh())),
             MeshMaterial3d(materials.add(Color::srgb(0.8, 0.2, 0.2))),
             Transform::from_translation(Vec3::new(msg.x as f32 * 5., 0.75, msg.y as f32 * 5.)),
+            Player,
         ));
         info!("Added player #{}", msg.id);
     }
