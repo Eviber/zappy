@@ -59,7 +59,6 @@ impl World {
 				}
 			}
 		}
-		ft_log::info!("{:?}", cells);
         Self { width, height, cells }
     }
 }
