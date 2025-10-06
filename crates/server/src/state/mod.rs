@@ -254,13 +254,14 @@ impl State {
             })
             .collect();
 
-        let world = World::new(args.width, args.height);
+		let mut rng = Rng::from_urandom().unwrap_or(Rng::new(0xdeadbeef));
+        let world = World::new(args.width, args.height, &mut rng);
 
         Self {
             teams,
             players: Vec::new(),
             world,
-            rng: Rng::from_urandom().unwrap_or(Rng::new(0xdeadbeef)),
+            rng,
         }
     }
 
@@ -363,6 +364,9 @@ impl State {
             }
 			Command::Inventory => {
 				Response::Inventory(player.inventory)
+			}
+			Command::LookAround => {
+				Response::Ko
 			}
             _ => Response::Ko,
         }
