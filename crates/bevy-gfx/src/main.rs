@@ -58,14 +58,19 @@ fn setup(
             shadows_enabled: true,
             ..default()
         },
+        bevy::light::SunDisk::EARTH,
         Transform::from_translation(Vec3 {
-            x: -10.0,
-            y: 10.0,
-            z: -10.0,
+            x: -1000.0,
+            y: 1000.0,
+            z: -1000.0,
         })
         .looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
     // camera
-    commands.spawn((Camera3d::default(), Transform::default()));
+    commands.spawn((
+        Camera3d::default(),
+        bevy::pbr::Atmosphere::default(),
+        Transform::default(),
+    ));
 }
