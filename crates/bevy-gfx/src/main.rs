@@ -54,7 +54,10 @@ fn setup(
 
     // light
     commands.spawn((
-        DirectionalLight::default(),
+        DirectionalLight {
+            shadows_enabled: true,
+            ..default()
+        },
         Transform::from_translation(Vec3 {
             x: -10.0,
             y: 10.0,
