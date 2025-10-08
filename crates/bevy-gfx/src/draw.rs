@@ -1,5 +1,7 @@
-use super::TILE_SIZE;
+use crate::server_message_handlers::HoveredPlayer;
 use bevy::prelude::*;
+
+use super::TILE_SIZE;
 
 use super::Ground;
 use super::Player;
@@ -8,19 +10,38 @@ pub(crate) struct DrawPlugin;
 
 impl Plugin for DrawPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (axes, grid, cursor));
+        app.add_plugins(MeshPickingPlugin);
+        app.add_systems(Startup, setup);
+        app.add_systems(Update, (axes, grid, cursor, draw_player_info));
     }
 }
 
+#[derive(Component)]
+struct PlayerInfoText;
+
+/// Setup the info text
+fn setup(mut commands: Commands) {
+    // Spawn UI overlay text in top-left
+    commands.spawn((
+            Node {
+                ..default()
+            },
+            Text::new(""),
+            TextColor(Color::BLACK),
+            PlayerInfoText,
+    ));
+}
+
 /// Draw 3D axes of the players
-pub(crate) fn axes(mut gizmos: Gizmos, query: Query<(&GlobalTransform,), With<Player>>) {
+fn axes(mut gizmos: Gizmos, query: Query<(&GlobalTransform,), With<Player>>) {
     for (transform,) in &query {
         let length = 1.5;
         gizmos.axes(*transform, length);
     }
 }
 
-pub(crate) fn grid(ground: Single<&GlobalTransform, With<Ground>>, mut gizmos: Gizmos) {
+/// Draw a grid on the ground
+fn grid(ground: Single<&GlobalTransform, With<Ground>>, mut gizmos: Gizmos) {
     gizmos.grid(
         Isometry3d::new(
             ground.translation(),
@@ -32,7 +53,8 @@ pub(crate) fn grid(ground: Single<&GlobalTransform, With<Ground>>, mut gizmos: G
     );
 }
 
-pub(crate) fn cursor(
+/// Draw a cursor on the ground where the mouse is pointing
+fn cursor(
     camera_query: Single<(&Camera, &GlobalTransform)>,
     ground: Single<&GlobalTransform, With<Ground>>,
     windows: Query<&Window>,
@@ -70,4 +92,16 @@ pub(crate) fn cursor(
         0.2,
         Color::WHITE,
     );
+}
+
+/// Draws the player info UI when hovering over a player
+fn draw_player_info(
+    hovered_player: Option<Res<HoveredPlayer>>,
+    mut text: Single<&mut Text, With<PlayerInfoText>>,
+) {
+    if let Some(info) = hovered_player {
+        text.0 = format!("Player #{}\nTeam: {}\nLevel: {}", info.id, info.team, info.level);
+    } else {
+        text.0 = "".to_string();
+    }
 }

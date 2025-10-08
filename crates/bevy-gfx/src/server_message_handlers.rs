@@ -175,6 +175,9 @@ struct Level(u32);
 #[derive(Component)]
 struct Team(String);
 
+#[derive(Component)]
+struct Id(u32);
+
 fn add_player(
     mut reader: MessageReader<NewPlayer>,
     mut commands: Commands,
@@ -194,14 +197,54 @@ fn add_player(
             rotation,
             ..Default::default()
         };
-        commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(0.8, 1.5, 0.8).mesh())),
-            MeshMaterial3d(materials.add(Color::srgb(0.8, 0.2, 0.2))),
-            transform,
-            Player,
-            Level(msg.level),
-            Team(msg.team.clone()),
-        ));
+        commands
+            .spawn((
+                Mesh3d(meshes.add(Cuboid::new(0.8, 1.5, 0.8).mesh())),
+                MeshMaterial3d(materials.add(Color::srgb(0.8, 0.2, 0.2))),
+                transform,
+                Player,
+                Level(msg.level),
+                Team(msg.team.clone()),
+                Id(msg.id),
+            ))
+            .observe(on_player_hover)
+            .observe(on_player_unhover);
         info!("Added player #{}", msg.id);
+    }
+}
+
+#[derive(Resource)]
+pub struct HoveredPlayer {
+    pub id: u32,
+    pub team: String,
+    pub level: u32,
+}
+
+fn on_player_hover(
+    over: On<Pointer<Over>>,
+    query: Query<(&Id, &Team, &Level), With<Player>>,
+    mut commands: Commands,
+) {
+    if let Ok((id, team, level)) = query.get(over.entity) {
+        let info = HoveredPlayer {
+            id: id.0,
+            team: team.0.clone(),
+            level: level.0,
+        };
+        commands.insert_resource(info);
+        info!("Hovering over player #{}", id.0);
+    } else {
+        error!("Hovered entity is not a player");
+    }
+}
+
+fn on_player_unhover(
+    out: On<Pointer<Out>>,
+    query: Query<&Id, With<Player>>,
+    mut commands: Commands,
+) {
+    if let Ok(id) = query.get(out.entity) {
+        info!("Stopped hovering over player #{}", id.0);
+        commands.remove_resource::<HoveredPlayer>();
     }
 }
