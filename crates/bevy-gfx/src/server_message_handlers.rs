@@ -225,15 +225,16 @@ fn add_egg(
             translation: Vec3::new(msg.x as f32 * TILE_SIZE, 0.25, msg.y as f32 * TILE_SIZE),
             ..Default::default()
         };
-        commands.spawn((
-            Mesh3d(meshes.add(Sphere::new(0.25).mesh())),
-            MeshMaterial3d(materials.add(Color::srgb(0.8, 0.8, 0.8))),
-            transform,
-            Id(msg.id),
-            Egg,
-        ))
-        .observe(on_egg_hover)
-        .observe(on_unhover);
+        commands
+            .spawn((
+                Mesh3d(meshes.add(Sphere::new(0.25).mesh())),
+                MeshMaterial3d(materials.add(Color::srgb(0.8, 0.8, 0.8))),
+                transform,
+                Id(msg.id),
+                Egg,
+            ))
+            .observe(on_egg_hover)
+            .observe(on_unhover);
         info!("Added egg #{}", msg.id);
     }
 }
@@ -258,11 +259,7 @@ fn on_player_hover(
     }
 }
 
-fn on_egg_hover(
-    over: On<Pointer<Over>>,
-    query: Query<&Id, With<Egg>>,
-    mut commands: Commands,
-) {
+fn on_egg_hover(over: On<Pointer<Over>>, query: Query<&Id, With<Egg>>, mut commands: Commands) {
     if let Ok(id) = query.get(over.entity) {
         let info = HoverInfo(format!("Egg #{}", id.0));
         commands.insert_resource(info);
@@ -272,11 +269,7 @@ fn on_egg_hover(
     }
 }
 
-fn on_unhover(
-    out: On<Pointer<Out>>,
-    query: Query<&Id>,
-    mut commands: Commands,
-) {
+fn on_unhover(out: On<Pointer<Out>>, query: Query<&Id>, mut commands: Commands) {
     if let Ok(id) = query.get(out.entity) {
         info!("Stopped hovering over entity #{}", id.0);
         commands.remove_resource::<HoverInfo>();

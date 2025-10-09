@@ -23,12 +23,10 @@ struct PlayerInfoText;
 fn setup(mut commands: Commands) {
     // Spawn UI overlay text in top-left
     commands.spawn((
-            Node {
-                ..default()
-            },
-            Text::new(""),
-            TextColor(Color::BLACK),
-            PlayerInfoText,
+        Node { ..default() },
+        Text::new(""),
+        TextColor(Color::BLACK),
+        PlayerInfoText,
     ));
 }
 
