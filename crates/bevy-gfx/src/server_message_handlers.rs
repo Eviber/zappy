@@ -19,6 +19,7 @@ impl Plugin for ServerMessageHandlersPlugin {
                 update_tile_content,
                 add_team,
                 add_player,
+                add_egg,
             ),
         );
     }
@@ -208,17 +209,37 @@ fn add_player(
                 Id(msg.id),
             ))
             .observe(on_player_hover)
-            .observe(on_player_unhover);
+            .observe(on_unhover);
         info!("Added player #{}", msg.id);
     }
 }
 
-#[derive(Resource)]
-pub struct HoveredPlayer {
-    pub id: u32,
-    pub team: String,
-    pub level: u32,
+fn add_egg(
+    mut reader: MessageReader<NewEgg>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    for msg in reader.read() {
+        let transform = Transform {
+            translation: Vec3::new(msg.x as f32 * TILE_SIZE, 0.25, msg.y as f32 * TILE_SIZE),
+            ..Default::default()
+        };
+        commands.spawn((
+            Mesh3d(meshes.add(Sphere::new(0.25).mesh())),
+            MeshMaterial3d(materials.add(Color::srgb(0.8, 0.8, 0.8))),
+            transform,
+            Id(msg.id),
+            Egg,
+        ))
+        .observe(on_egg_hover)
+        .observe(on_unhover);
+        info!("Added egg #{}", msg.id);
+    }
 }
+
+#[derive(Resource)]
+pub struct HoverInfo(pub String);
 
 fn on_player_hover(
     over: On<Pointer<Over>>,
@@ -226,11 +247,10 @@ fn on_player_hover(
     mut commands: Commands,
 ) {
     if let Ok((id, team, level)) = query.get(over.entity) {
-        let info = HoveredPlayer {
-            id: id.0,
-            team: team.0.clone(),
-            level: level.0,
-        };
+        let info = HoverInfo(format!(
+            "Player #{}\nTeam: {}\nLevel: {}",
+            id.0, team.0, level.0
+        ));
         commands.insert_resource(info);
         info!("Hovering over player #{}", id.0);
     } else {
@@ -238,13 +258,27 @@ fn on_player_hover(
     }
 }
 
-fn on_player_unhover(
+fn on_egg_hover(
+    over: On<Pointer<Over>>,
+    query: Query<&Id, With<Egg>>,
+    mut commands: Commands,
+) {
+    if let Ok(id) = query.get(over.entity) {
+        let info = HoverInfo(format!("Egg #{}", id.0));
+        commands.insert_resource(info);
+        info!("Hovering over egg #{}", id.0);
+    } else {
+        error!("Hovered entity is not an egg");
+    }
+}
+
+fn on_unhover(
     out: On<Pointer<Out>>,
-    query: Query<&Id, With<Player>>,
+    query: Query<&Id>,
     mut commands: Commands,
 ) {
     if let Ok(id) = query.get(out.entity) {
-        info!("Stopped hovering over player #{}", id.0);
-        commands.remove_resource::<HoveredPlayer>();
+        info!("Stopped hovering over entity #{}", id.0);
+        commands.remove_resource::<HoverInfo>();
     }
 }

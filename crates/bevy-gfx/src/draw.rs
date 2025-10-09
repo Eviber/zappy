@@ -1,4 +1,4 @@
-use crate::server_message_handlers::HoveredPlayer;
+use crate::server_message_handlers::HoverInfo;
 use bevy::prelude::*;
 
 use super::TILE_SIZE;
@@ -96,11 +96,11 @@ fn cursor(
 
 /// Draws the player info UI when hovering over a player
 fn draw_player_info(
-    hovered_player: Option<Res<HoveredPlayer>>,
+    hovered_player: Option<Res<HoverInfo>>,
     mut text: Single<&mut Text, With<PlayerInfoText>>,
 ) {
     if let Some(info) = hovered_player {
-        text.0 = format!("Player #{}\nTeam: {}\nLevel: {}", info.id, info.team, info.level);
+        text.0 = info.0.clone();
     } else {
         text.0 = "".to_string();
     }

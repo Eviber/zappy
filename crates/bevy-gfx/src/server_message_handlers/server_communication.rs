@@ -37,6 +37,7 @@ impl Plugin for ServerCommunicationPlugin {
         app.add_message::<UpdateTileContent>();
         app.add_message::<TeamName>();
         app.add_message::<NewPlayer>();
+        app.add_message::<NewEgg>();
         app.add_systems(PreUpdate, receive_server_message);
     }
 }
@@ -53,6 +54,7 @@ enum ServerMessage {
     TileContent(UpdateTileContent),
     TeamName(String),
     PlayerNew(NewPlayer),
+    EggNew(NewEgg),
 }
 
 #[derive(Message)]
@@ -84,6 +86,13 @@ pub struct NewPlayer {
     pub team: String,
 }
 
+#[derive(Message)]
+pub struct NewEgg {
+    pub id: u32,
+    pub x: usize,
+    pub y: usize,
+}
+
 pub fn setup_stdin_reader(mut commands: Commands) {
     let stdin = io::stdin();
 
@@ -110,6 +119,7 @@ fn receive_server_message(
     mut update_tile_content_writer: MessageWriter<UpdateTileContent>,
     mut team_name_writer: MessageWriter<TeamName>,
     mut new_player_writer: MessageWriter<NewPlayer>,
+    mut new_egg_writer: MessageWriter<NewEgg>,
 ) {
     loop {
         reader.buffer.clear();
@@ -154,6 +164,9 @@ fn receive_server_message(
                     }
                     ServerMessage::PlayerNew(np) => {
                         new_player_writer.write(np);
+                    }
+                    ServerMessage::EggNew(ne) => {
+                        new_egg_writer.write(ne);
                     }
                 }
             }
@@ -209,7 +222,12 @@ impl std::str::FromStr for ServerMessage {
                     team: team.to_string(),
                 }))
             }
-            _ => Err(format!("Unrecognized message format: {}", s)),
+            ["enw", id, x, y] => Ok(ServerMessage::EggNew(NewEgg {
+                id: id.parse().map_err(int_parse_error)?,
+                x: x.parse().map_err(int_parse_error)?,
+                y: y.parse().map_err(int_parse_error)?,
+            })),
+            _ => Err(format!("Unrecognized message format: {s}")),
         }
     }
 }
