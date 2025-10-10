@@ -77,6 +77,7 @@ pub enum Response {
 	/// The string `"ko"`.
 	Ko,
 	/// Inventory of the player
+	// todo box where needed 
 	Inventory([u32; 7]),
 	/// What the player sees
 	Sight([[u32; 7]; 81]),
@@ -106,7 +107,6 @@ impl Response {
                 ft_async::futures::write_all(fd, buf.as_bytes()).await?
             }
         }
-
         Ok(())
     }
 }
@@ -133,6 +133,8 @@ pub type PlayerId = usize;
 
 /// A direction in which the player can be facing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// TODO fix inconsistence between doc and actual Y computation
+// TODO make direction order consistent in matches
 pub enum PlayerDirection {
     /// The player faces the negative Y direction.
     North,
@@ -178,6 +180,8 @@ pub struct PlayerState {
     commands: ArrayVec<ScheduledCommand, 10>,
     /// A direction in which the player is facing.
     facing: PlayerDirection,
+	/// Current player elevation.
+	level: u32,
 	/// Current inventory of the player on the inventory axis.
 	/// Indices follow world::ObjectClass order...
 	inventory: [u32; 7],
@@ -307,6 +311,7 @@ impl State {
                 _ => unreachable!(),
             },
 			inventory: [0; 7],
+			level: 1,
             x: self.rng.next_u64() as u32 % self.world.width,
             y: self.rng.next_u64() as u32 % self.world.height,
         }));
@@ -366,7 +371,45 @@ impl State {
 				Response::Inventory(player.inventory)
 			}
 			Command::LookAround => {
-				Response::Ko
+				// 1 << 31 is a magic value to represent a case the player cant see because of his level
+				// todo use option
+				let mut sight = [[1 << 31; 7]; 81];
+				
+				sight[0] = self.world.cells[(player.x + player.y * self.world.width) as usize];
+				let mut level_tool = 1;
+				// dir represents 2 vectors, the offset dir per level, and the offset dir per case inside that level
+				// todo the second vector is always equal to (-vec1.y, vec1.x)
+				let dir: (i32, i32) = match player.facing {
+					PlayerDirection::North => (0, 1),
+					PlayerDirection::East => (1, 0),
+					PlayerDirection::South => (0, -1),
+					PlayerDirection::West => (-1, 0),
+				};
+				for i in 1..(player.level + 1)*(player.level + 1) {
+					if level_tool * level_tool < (i + 1) {
+						level_tool += 1;
+					}
+					let level_offset = (level_tool - 1) as i32;
+					let level_index = (i as i32 + 1) - level_offset * level_offset;
+					let mut x_sight = player.x as i32 + level_offset * dir.0 - level_index * dir.1;
+					let mut y_sight = player.y as i32 + level_offset * dir.1 + level_index * dir.0;
+					// while because if world size is 1x1 problems would occur
+					while x_sight < 0 {
+						x_sight += self.world.width as i32;
+					}
+					while x_sight >= self.world.width as i32 {
+						x_sight -= self.world.width as i32;
+					}
+					while y_sight < 0 {
+						y_sight += self.world.height as i32;
+					}
+					while y_sight >= self.world.height as i32 {
+						y_sight -= self.world.height as i32;
+					}
+					sight[i as usize] = self.world.cells[(x_sight + y_sight * self.world.width as i32) as usize];
+					// todo loop other players to check if they are in sight
+				}
+				Response::Sight(sight)
 			}
             _ => Response::Ko,
         }
