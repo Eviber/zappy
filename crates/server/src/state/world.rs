@@ -44,21 +44,25 @@ pub struct World {
     pub width: u32,
     /// The height of the world.
     pub height: u32,
-	pub cells: Vec<[u32; 7]>,
+    pub cells: Vec<[u32; 7]>,
 }
 
 impl World {
     /// Creates a new [`World`] with the specified dimensions.
     pub fn new(width: u32, height: u32, rng: &mut Rng) -> Self {
-		let mut cells = vec![[0; 7]; (width * height) as usize];
-		for i in 0..(width*height) as usize {
-			for j in 0..7 {
-				let random = rng.next_u64() % 32;
-				if random < 8 {
-					cells[i][j] = (random / 2) as u32;
-				}
-			}
-		}
-        Self { width, height, cells }
+        let mut cells = vec![[0; 7]; (width * height) as usize];
+        for i in 0..(width * height) as usize {
+            for j in 0..7 {
+                let random = rng.next_u64() % 32;
+                if random < 8 {
+                    cells[i][j] = (random / 2) as u32;
+                }
+            }
+        }
+        Self {
+            width,
+            height,
+            cells,
+        }
     }
 }
