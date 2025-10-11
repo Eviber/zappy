@@ -50,8 +50,8 @@ pub struct World {
 impl World {
     /// Creates a new [`World`] with the specified dimensions.
     pub fn new(width: u32, height: u32, rng: &mut Rng) -> Self {
-		let mut cells = vec![[0; 7]; (width * height).try_into().unwrap()];
-		for i in 0..(width*height).try_into().unwrap() {
+		let mut cells = vec![[0; 7]; (width * height) as usize];
+		for i in 0..(width*height) as usize {
 			for j in 0..7 {
 				let random = rng.next_u64() % 32;
 				if random < 8 {
