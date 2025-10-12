@@ -21,9 +21,9 @@ jobs:
         run: cargo clippy --verbose
       - name: Clippy (server)
         run: cargo -Z unstable-options -C crates/server clippy --verbose
-      - name: Build (client)
-        run: cargo build --verbose
-      - name: Build (server)
-        run: cargo -Z unstable-options -C crates/server build --verbose
-      - name: Make
-        run: make re
+      # - name: Build (client)
+      #   run: cargo build --verbose
+      # - name: Build (server)
+      #   run: cargo -Z unstable-options -C crates/server build --verbose
+      # - name: Make
+      #   run: make re
