@@ -54,9 +54,9 @@ impl World {
         let mut cells = vec![[0; 7]; cells_count];
         for i in 0..cells_count {
             for j in 0..7 {
-                let random = rng.next_u64() % 32;
-                if random < 8 {
-                    cells[i][j] = (random / 2) as u32;
+                let random = rng.next_u64() % 16;
+                if random < 4 {
+                    cells[i][j] = random as u32;
                 }
             }
         }
