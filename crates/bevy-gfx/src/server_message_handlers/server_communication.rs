@@ -55,6 +55,7 @@ enum ServerMessage {
     TeamName(String),
     PlayerNew(NewPlayer),
     EggNew(NewEgg),
+    Error(String),
 }
 
 #[derive(Message)]
@@ -168,6 +169,9 @@ fn receive_server_message(
                     ServerMessage::EggNew(ne) => {
                         new_egg_writer.write(ne);
                     }
+                    ServerMessage::Error(s) => {
+                        error!("Server error message: {}", s);
+                    }
                 }
             }
             Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
@@ -227,6 +231,12 @@ impl std::str::FromStr for ServerMessage {
                 x: x.parse().map_err(int_parse_error)?,
                 y: y.parse().map_err(int_parse_error)?,
             })),
+            ["suc"] => Ok(ServerMessage::Error(
+                "Unknown command".to_string(),
+            )),
+            ["sbp"] => Ok(ServerMessage::Error(
+                "Bad parameters".to_string(),
+            )),
             _ => Err(format!("Unrecognized message format: {s}")),
         }
     }
