@@ -231,12 +231,8 @@ impl std::str::FromStr for ServerMessage {
                 x: x.parse().map_err(int_parse_error)?,
                 y: y.parse().map_err(int_parse_error)?,
             })),
-            ["suc"] => Ok(ServerMessage::Error(
-                "Unknown command".to_string(),
-            )),
-            ["sbp"] => Ok(ServerMessage::Error(
-                "Bad parameters".to_string(),
-            )),
+            ["suc"] => Ok(ServerMessage::Error("Unknown command".to_string())),
+            ["sbp"] => Ok(ServerMessage::Error("Bad parameters".to_string())),
             _ => Err(format!("Unrecognized message format: {s}")),
         }
     }
