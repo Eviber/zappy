@@ -80,7 +80,7 @@ pub enum Response {
     // todo box where needed
     Inventory([u32; 7]),
     /// What the player sees
-    Sight([[u32; 7]; 81]),
+    Sight([Option<WorldCell>; 81]),
     /// The number of available slots in the team.
     ConnectNbr(u32),
 }
@@ -379,9 +379,10 @@ impl State {
             Command::LookAround => {
                 // 1 << 31 is a magic value to represent a case the player cant see because of his level
                 // todo use option
-                let mut sight = [[1 << 31; 7]; 81];
+                let mut sight = [None; 81];
 
-                sight[0] = self.world.cells[(player.x + player.y * self.world.width) as usize];
+                sight[0] =
+                    Some(self.world.cells[(player.x + player.y * self.world.width) as usize]);
                 let mut level_tool = 1;
                 // dir represents 2 vectors, the offset dir per level, and the offset dir per case inside that level
                 // todo the second vector is always equal to (-vec1.y, vec1.x)
@@ -412,8 +413,9 @@ impl State {
                     while y_sight >= self.world.height as i32 {
                         y_sight -= self.world.height as i32;
                     }
-                    sight[i as usize] =
-                        self.world.cells[(x_sight + y_sight * self.world.width as i32) as usize];
+                    sight[i as usize] = Some(
+                        self.world.cells[(x_sight + y_sight * self.world.width as i32) as usize],
+                    );
                     // todo loop other players to check if they are in sight
                 }
                 Response::Sight(sight)
