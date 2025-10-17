@@ -50,6 +50,7 @@ pub enum ServerMessage {
     TileContent(UpdateTileContent),
     TeamName(String),
     PlayerNew(NewPlayer),
+    PlayerPosition(PlayerPosition),
     EggNew(NewEgg),
     Error(String),
 }
@@ -74,6 +75,13 @@ pub struct NewPlayer {
     pub orientation: u8,
     pub level: u32,
     pub team: String,
+}
+
+pub struct PlayerPosition {
+    pub id: u32,
+    pub x: usize,
+    pub y: usize,
+    pub orientation: u8,
 }
 
 pub struct NewEgg {
@@ -184,6 +192,12 @@ impl std::str::FromStr for ServerMessage {
                     team: team.to_string(),
                 }))
             }
+            ["ppo", id, x, y, orientation] => Ok(ServerMessage::PlayerPosition(PlayerPosition {
+                id: id.parse().map_err(int_parse_error)?,
+                x: x.parse().map_err(int_parse_error)?,
+                y: y.parse().map_err(int_parse_error)?,
+                orientation: orientation.parse().map_err(int_parse_error)?,
+            })),
             ["plv", ..] => Err("Player level update not implemented".to_string()),
             ["pin", ..] => Err("Player inventory update not implemented".to_string()),
             ["pex", ..] => Err("Player expulsion not implemented".to_string()),

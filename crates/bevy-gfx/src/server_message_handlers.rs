@@ -20,6 +20,7 @@ impl Plugin for ServerMessageHandlersPlugin {
                 update_tile_content,
                 add_team,
                 add_player,
+                move_player,
                 add_egg,
             ),
         );
@@ -201,6 +202,21 @@ struct Team(String);
 #[derive(Component)]
 struct Id(u32);
 
+fn player_transform_from_pos(x: usize, y: usize, orientation: u8) -> Transform {
+    let rotation = match orientation {
+        1 => Quat::from_rotation_y(0.),                           // North
+        2 => Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2), // East
+        3 => Quat::from_rotation_y(std::f32::consts::PI),         // South
+        4 => Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),  // West
+        _ => panic!("Invalid orientation"),
+    };
+    Transform {
+        translation: Vec3::new(x as f32 * TILE_SIZE, 0.75, y as f32 * TILE_SIZE),
+        rotation,
+        ..Default::default()
+    }
+}
+
 fn add_player(
     mut reader: MessageReader<ServerMessage>,
     mut commands: Commands,
@@ -211,18 +227,7 @@ fn add_player(
         let ServerMessage::PlayerNew(msg) = msg else {
             continue;
         };
-        let rotation = match msg.orientation {
-            1 => Quat::from_rotation_y(0.),                           // North
-            2 => Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2), // East
-            3 => Quat::from_rotation_y(std::f32::consts::PI),         // South
-            4 => Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),  // West
-            _ => panic!("Invalid orientation"),
-        };
-        let transform = Transform {
-            translation: Vec3::new(msg.x as f32 * TILE_SIZE, 0.75, msg.y as f32 * TILE_SIZE),
-            rotation,
-            ..Default::default()
-        };
+        let transform = player_transform_from_pos(msg.x, msg.y, msg.orientation);
         commands
             .spawn((
                 Mesh3d(meshes.add(Cuboid::new(0.8, 1.5, 0.8).mesh())),
@@ -236,6 +241,28 @@ fn add_player(
             .observe(on_player_hover)
             .observe(on_unhover);
         info!("Added player #{}", msg.id);
+    }
+}
+
+fn move_player(
+    mut reader: MessageReader<ServerMessage>,
+    mut query: Query<(&Id, &mut Transform), With<Player>>,
+) {
+    for msg in reader.read() {
+        let ServerMessage::PlayerPosition(msg) = msg else {
+            continue;
+        };
+        if let Some((_, mut transform)) = query.iter_mut().find(|(id, _)| id.0 == msg.id) {
+            let new_transform = player_transform_from_pos(msg.x, msg.y, msg.orientation);
+            transform.translation = new_transform.translation;
+            transform.rotation = new_transform.rotation;
+            info!(
+                "Moved player #{} to ({}, {}) with orientation {}",
+                msg.id, msg.x, msg.y, msg.orientation
+            );
+        } else {
+            warn!("Received position update for unknown player #{}", msg.id);
+        }
     }
 }
 
