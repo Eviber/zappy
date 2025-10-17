@@ -14,6 +14,7 @@ impl Plugin for ServerMessageHandlersPlugin {
         app.add_systems(
             Update,
             (
+                log_server_error,
                 update_map_size,
                 update_game_tick,
                 update_tile_content,
@@ -26,13 +27,16 @@ impl Plugin for ServerMessageHandlersPlugin {
 }
 
 fn update_map_size(
-    mut reader: MessageReader<UpdateMapSize>,
+    mut reader: MessageReader<ServerMessage>,
     mut map_size: ResMut<MapSize>,
     mut ground: Single<(&mut Transform, &mut Mesh3d), With<Ground>>,
     mut camera: Single<&mut Transform, (With<Camera3d>, Without<Ground>)>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     for msg in reader.read() {
+        let ServerMessage::MapSize(msg) = msg else {
+            continue;
+        };
         info!("Map size updated: {}x{}", msg.width, msg.height);
         map_size.width = msg.width;
         map_size.height = msg.height;
@@ -61,8 +65,11 @@ fn update_map_size(
     }
 }
 
-fn update_game_tick(mut reader: MessageReader<UpdateGameTick>, mut time_unit: ResMut<TimeUnit>) {
+fn update_game_tick(mut reader: MessageReader<ServerMessage>, mut time_unit: ResMut<TimeUnit>) {
     for msg in reader.read() {
+        let ServerMessage::GameTick(msg) = msg else {
+            continue;
+        };
         info!("Game tick updated: {}", msg.0);
         time_unit.0 = msg.0;
     }
@@ -124,13 +131,16 @@ impl Item {
 struct TileStacks(std::collections::HashMap<(usize, usize), [Vec<Entity>; 7]>);
 
 fn update_tile_content(
-    mut reader: MessageReader<UpdateTileContent>,
+    mut reader: MessageReader<ServerMessage>,
     mut commands: Commands,
     mut stacks: ResMut<TileStacks>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     for msg in reader.read() {
+        let ServerMessage::TileContent(msg) = msg else {
+            continue;
+        };
         info!("Tile ({}, {}) resources: {:?}", msg.x, msg.y, msg.items);
         let tile_pos = (msg.x, msg.y);
         let stack = stacks.0.entry(tile_pos).or_default();
@@ -164,9 +174,21 @@ fn update_tile_content(
     }
 }
 
-fn add_team(mut reader: MessageReader<TeamName>) {
+fn add_team(mut reader: MessageReader<ServerMessage>) {
     for msg in reader.read() {
-        info!("Team name: {}", msg.0);
+        let ServerMessage::TeamName(msg) = msg else {
+            continue;
+        };
+        info!("Team name: {}", msg);
+    }
+}
+
+fn log_server_error(mut reader: MessageReader<ServerMessage>) {
+    for msg in reader.read() {
+        let ServerMessage::Error(msg) = msg else {
+            continue;
+        };
+        error!("Server error message: {}", msg);
     }
 }
 
@@ -180,12 +202,15 @@ struct Team(String);
 struct Id(u32);
 
 fn add_player(
-    mut reader: MessageReader<NewPlayer>,
+    mut reader: MessageReader<ServerMessage>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     for msg in reader.read() {
+        let ServerMessage::PlayerNew(msg) = msg else {
+            continue;
+        };
         let rotation = match msg.orientation {
             1 => Quat::from_rotation_y(0.),                           // North
             2 => Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2), // East
@@ -215,12 +240,15 @@ fn add_player(
 }
 
 fn add_egg(
-    mut reader: MessageReader<NewEgg>,
+    mut reader: MessageReader<ServerMessage>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     for msg in reader.read() {
+        let ServerMessage::EggNew(msg) = msg else {
+            continue;
+        };
         let transform = Transform {
             translation: Vec3::new(msg.x as f32 * TILE_SIZE, 0.25, msg.y as f32 * TILE_SIZE),
             ..Default::default()
