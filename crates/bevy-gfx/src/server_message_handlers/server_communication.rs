@@ -32,12 +32,7 @@ pub struct ServerCommunicationPlugin;
 impl Plugin for ServerCommunicationPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup_stdin_reader);
-        app.add_message::<UpdateMapSize>();
-        app.add_message::<UpdateGameTick>();
-        app.add_message::<UpdateTileContent>();
-        app.add_message::<TeamName>();
-        app.add_message::<NewPlayer>();
-        app.add_message::<NewEgg>();
+        app.add_message::<ServerMessage>();
         app.add_systems(PreUpdate, receive_server_message);
     }
 }
@@ -48,7 +43,8 @@ struct StdinReader {
     buffer: String,
 }
 
-enum ServerMessage {
+#[derive(Message)]
+pub enum ServerMessage {
     MapSize(UpdateMapSize),
     GameTick(UpdateGameTick),
     TileContent(UpdateTileContent),
@@ -58,26 +54,19 @@ enum ServerMessage {
     Error(String),
 }
 
-#[derive(Message)]
 pub struct UpdateMapSize {
     pub width: usize,
     pub height: usize,
 }
 
-#[derive(Message)]
 pub struct UpdateGameTick(pub u32);
 
-#[derive(Message)]
 pub struct UpdateTileContent {
     pub x: usize,
     pub y: usize,
     pub items: [u32; 7],
 }
 
-#[derive(Message)]
-pub struct TeamName(pub String);
-
-#[derive(Message)]
 pub struct NewPlayer {
     pub id: u32,
     pub x: usize,
@@ -87,7 +76,6 @@ pub struct NewPlayer {
     pub team: String,
 }
 
-#[derive(Message)]
 pub struct NewEgg {
     pub id: u32,
     pub x: usize,
@@ -115,12 +103,7 @@ pub fn setup_stdin_reader(mut commands: Commands) {
 
 fn receive_server_message(
     mut reader: ResMut<StdinReader>,
-    mut map_size_writer: MessageWriter<UpdateMapSize>,
-    mut game_tick_writer: MessageWriter<UpdateGameTick>,
-    mut update_tile_content_writer: MessageWriter<UpdateTileContent>,
-    mut team_name_writer: MessageWriter<TeamName>,
-    mut new_player_writer: MessageWriter<NewPlayer>,
-    mut new_egg_writer: MessageWriter<NewEgg>,
+    mut server_message_writer: MessageWriter<ServerMessage>,
 ) {
     loop {
         reader.buffer.clear();
@@ -150,29 +133,7 @@ fn receive_server_message(
                         continue;
                     }
                 };
-                match msg {
-                    ServerMessage::MapSize(map_size) => {
-                        map_size_writer.write(map_size);
-                    }
-                    ServerMessage::GameTick(game_tick) => {
-                        game_tick_writer.write(game_tick);
-                    }
-                    ServerMessage::TileContent(utc) => {
-                        update_tile_content_writer.write(utc);
-                    }
-                    ServerMessage::TeamName(name) => {
-                        team_name_writer.write(TeamName(name));
-                    }
-                    ServerMessage::PlayerNew(np) => {
-                        new_player_writer.write(np);
-                    }
-                    ServerMessage::EggNew(ne) => {
-                        new_egg_writer.write(ne);
-                    }
-                    ServerMessage::Error(s) => {
-                        error!("Server error message: {}", s);
-                    }
-                }
+                server_message_writer.write(msg);
             }
             Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
                 // No data available right now, that's fine
@@ -223,7 +184,6 @@ impl std::str::FromStr for ServerMessage {
                     team: team.to_string(),
                 }))
             }
-            ["ppo", ..] => Err("Player position update not implemented".to_string()),
             ["plv", ..] => Err("Player level update not implemented".to_string()),
             ["pin", ..] => Err("Player inventory update not implemented".to_string()),
             ["pex", ..] => Err("Player expulsion not implemented".to_string()),
