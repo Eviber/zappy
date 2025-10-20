@@ -24,6 +24,7 @@ impl Plugin for ServerMessageHandlersPlugin {
                 move_player,
                 update_player_level,
                 add_egg,
+                on_game_end,
             ),
         );
     }
@@ -319,6 +320,16 @@ fn add_egg(
             .observe(on_egg_hover)
             .observe(on_unhover);
         info!("Added egg #{}", msg.id);
+    }
+}
+
+fn on_game_end(mut reader: MessageReader<ServerMessage>, mut exit_writer: MessageWriter<AppExit>) {
+    for msg in reader.read() {
+        let ServerMessage::EndGame(msg) = msg else {
+            continue;
+        };
+        info!("Game ended! Winning team: {}", msg);
+        exit_writer.write(AppExit::Success);
     }
 }
 
