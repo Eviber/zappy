@@ -27,6 +27,10 @@
 use bevy::prelude::*;
 use std::io::{self, BufRead, BufReader};
 
+mod server_message;
+
+pub use server_message::ServerMessage;
+
 pub struct ServerCommunicationPlugin;
 
 impl Plugin for ServerCommunicationPlugin {
@@ -41,53 +45,6 @@ impl Plugin for ServerCommunicationPlugin {
 struct StdinReader {
     reader: BufReader<io::Stdin>,
     buffer: String,
-}
-
-#[derive(Message)]
-pub enum ServerMessage {
-    MapSize(UpdateMapSize),
-    GameTick(UpdateGameTick),
-    TileContent(UpdateTileContent),
-    TeamName(String),
-    PlayerNew(NewPlayer),
-    PlayerPosition(PlayerPosition),
-    EggNew(NewEgg),
-    Error(String),
-}
-
-pub struct UpdateMapSize {
-    pub width: usize,
-    pub height: usize,
-}
-
-pub struct UpdateGameTick(pub u32);
-
-pub struct UpdateTileContent {
-    pub x: usize,
-    pub y: usize,
-    pub items: [u32; 7],
-}
-
-pub struct NewPlayer {
-    pub id: u32,
-    pub x: usize,
-    pub y: usize,
-    pub orientation: u8,
-    pub level: u32,
-    pub team: String,
-}
-
-pub struct PlayerPosition {
-    pub id: u32,
-    pub x: usize,
-    pub y: usize,
-    pub orientation: u8,
-}
-
-pub struct NewEgg {
-    pub id: u32,
-    pub x: usize,
-    pub y: usize,
 }
 
 pub fn setup_stdin_reader(mut commands: Commands) {
@@ -151,82 +108,6 @@ fn receive_server_message(
                 error!("Error reading stdin: {}", e);
                 break;
             }
-        }
-    }
-}
-
-impl std::str::FromStr for ServerMessage {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let int_parse_error = |e: std::num::ParseIntError| e.to_string();
-        let parts: Vec<&str> = s.split_whitespace().collect();
-        match parts.as_slice() {
-            ["msz", width, height] => Ok(ServerMessage::MapSize(UpdateMapSize {
-                width: width.parse().map_err(int_parse_error)?,
-                height: height.parse().map_err(int_parse_error)?,
-            })),
-            ["bct", x, y, r0, r1, r2, r3, r4, r5, r6] => {
-                Ok(ServerMessage::TileContent(UpdateTileContent {
-                    x: x.parse().map_err(int_parse_error)?,
-                    y: y.parse().map_err(int_parse_error)?,
-                    items: [
-                        r0.parse().map_err(int_parse_error)?,
-                        r1.parse().map_err(int_parse_error)?,
-                        r2.parse().map_err(int_parse_error)?,
-                        r3.parse().map_err(int_parse_error)?,
-                        r4.parse().map_err(int_parse_error)?,
-                        r5.parse().map_err(int_parse_error)?,
-                        r6.parse().map_err(int_parse_error)?,
-                    ],
-                }))
-            }
-            ["tna", team_name] => Ok(ServerMessage::TeamName(team_name.to_string())),
-            ["pnw", id, x, y, orientation, level, team] => {
-                Ok(ServerMessage::PlayerNew(NewPlayer {
-                    id: id.parse().map_err(int_parse_error)?,
-                    x: x.parse().map_err(int_parse_error)?,
-                    y: y.parse().map_err(int_parse_error)?,
-                    orientation: orientation.parse().map_err(int_parse_error)?,
-                    level: level.parse().map_err(int_parse_error)?,
-                    team: team.to_string(),
-                }))
-            }
-            ["ppo", id, x, y, orientation] => Ok(ServerMessage::PlayerPosition(PlayerPosition {
-                id: id.parse().map_err(int_parse_error)?,
-                x: x.parse().map_err(int_parse_error)?,
-                y: y.parse().map_err(int_parse_error)?,
-                orientation: orientation.parse().map_err(int_parse_error)?,
-            })),
-            ["plv", ..] => Err("Player level update not implemented".to_string()),
-            ["pin", ..] => Err("Player inventory update not implemented".to_string()),
-            ["pex", ..] => Err("Player expulsion not implemented".to_string()),
-            ["pbc", ..] => Err("Player broadcast not implemented".to_string()),
-            ["pic", ..] => Err("Incantation start not implemented".to_string()),
-            ["pie", ..] => Err("Incantation end not implemented".to_string()),
-            ["pfk", ..] => Err("Player fork not implemented".to_string()),
-            ["pdr", ..] => Err("Player drop item not implemented".to_string()),
-            ["pgt", ..] => Err("Player get item not implemented".to_string()),
-            ["pdi", ..] => Err("Player death not implemented".to_string()),
-            ["enw", id, x, y] => Ok(ServerMessage::EggNew(NewEgg {
-                id: id.parse().map_err(int_parse_error)?,
-                x: x.parse().map_err(int_parse_error)?,
-                y: y.parse().map_err(int_parse_error)?,
-            })),
-            ["eht", ..] => Err("Egg hatching not implemented".to_string()),
-            ["ebo", ..] => Err("Egg being born not implemented".to_string()),
-            ["edi", ..] => Err("Egg death not implemented".to_string()),
-            ["sgt", tick] => Ok(ServerMessage::GameTick(UpdateGameTick(
-                tick.parse().map_err(int_parse_error)?,
-            ))),
-            ["seg"] => Err("Game end not implemented".to_string()),
-            ["smg", message @ ..] => Err(format!(
-                "Server message not implemented: {}",
-                message.join(" ")
-            )),
-            ["suc"] => Ok(ServerMessage::Error("Unknown command".to_string())),
-            ["sbp"] => Ok(ServerMessage::Error("Bad parameters".to_string())),
-            _ => Err(format!("Unrecognized message format: {s}")),
         }
     }
 }
