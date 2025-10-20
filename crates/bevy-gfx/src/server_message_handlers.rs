@@ -22,6 +22,7 @@ impl Plugin for ServerMessageHandlersPlugin {
                 add_team,
                 add_player,
                 move_player,
+                kill_player,
                 update_player_level,
                 add_egg,
                 on_game_end,
@@ -291,6 +292,24 @@ fn update_player_level(
             info!("Updated player #{} to level {}", msg.id, msg.level);
         } else {
             warn!("Received level update for unknown player #{}", msg.id);
+        }
+    }
+}
+
+fn kill_player(
+    mut reader: MessageReader<ServerMessage>,
+    mut commands: Commands,
+    query: Query<(Entity, &Id), With<Player>>,
+) {
+    for msg in reader.read() {
+        let ServerMessage::PlayerDeath(msg) = msg else {
+            continue;
+        };
+        if let Some((entity, _)) = query.iter().find(|(_, id)| id.0 == msg.id) {
+            commands.entity(entity).despawn();
+            info!("Player #{} has died and was removed from the game", msg.id);
+        } else {
+            warn!("Received death notification for unknown player #{}", msg.id);
         }
     }
 }
