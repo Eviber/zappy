@@ -21,6 +21,7 @@ impl Plugin for ServerMessageHandlersPlugin {
                 add_team,
                 add_player,
                 move_player,
+                update_player_level,
                 add_egg,
             ),
         );
@@ -262,6 +263,23 @@ fn move_player(
             );
         } else {
             warn!("Received position update for unknown player #{}", msg.id);
+        }
+    }
+}
+
+fn update_player_level(
+    mut reader: MessageReader<ServerMessage>,
+    mut query: Query<(&Id, &mut Level), With<Player>>,
+) {
+    for msg in reader.read() {
+        let ServerMessage::PlayerLevel(msg) = msg else {
+            continue;
+        };
+        if let Some((_, mut level)) = query.iter_mut().find(|(id, _)| id.0 == msg.id) {
+            level.0 = msg.level;
+            info!("Updated player #{} to level {}", msg.id, msg.level);
+        } else {
+            warn!("Received level update for unknown player #{}", msg.id);
         }
     }
 }

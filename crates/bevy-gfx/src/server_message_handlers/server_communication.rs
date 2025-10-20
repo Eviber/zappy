@@ -1,29 +1,5 @@
 // initial communications, using stdin and stdout for now, later with tcp
 
-// Symbol Meaning
-// X Width or horizontal position
-// Y Height or vertical position
-// N Team name
-// q Quantity
-// R Incantation result
-// n Player number
-// M Message
-// O Orientation (N:1, E:2, S:3, O:4)
-// i Resource number
-// L Player level or incantation level
-// e Egg number
-// T Time unit
-
-// read one line that should be "BIENVENUE"
-// sends "GRAPHIC"
-// "msz X Y" is received (map size)
-// "sgt T" is received (time unit)
-// "bct X Y q q q q q q q q q" is received for each cell of the map
-// "tna N" is received for each team
-// "pnw #n X Y O L N" is received for each player
-// "enw #e X Y" is received for each egg
-// read from stdin and parse the initial game state
-
 use bevy::prelude::*;
 use std::io::{self, BufRead, BufReader};
 
