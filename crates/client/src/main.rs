@@ -39,7 +39,18 @@ fn random_command() -> Command<'static> {
 fn main() -> Result<()> {
     let mut server = Server::new()?;
     loop {
-        server.send_command(random_command())?;
+        //server.send_command(random_command())?;
+        server.send_command(Command::Look)?;
+        while let Msg::Notif(_) = server.receive()? {}
+        server.send_command(Command::Forward)?;
+        while let Msg::Notif(_) = server.receive()? {}
+        server.send_command(Command::Forward)?;
+        while let Msg::Notif(_) = server.receive()? {}
+        server.send_command(Command::Forward)?;
+        while let Msg::Notif(_) = server.receive()? {}
+        server.send_command(Command::Forward)?;
+        while let Msg::Notif(_) = server.receive()? {}
+        server.send_command(Command::Left)?;
         while let Msg::Notif(_) = server.receive()? {}
     }
 }

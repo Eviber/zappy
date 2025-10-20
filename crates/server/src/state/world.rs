@@ -37,41 +37,24 @@ impl ObjectClass {
     }
 }
 
-struct Inventory {
-    /// Food.
-    food: u32,
-    /// Linemate.
-    linemate: u32,
-    /// Deraumere.
-    deraumere: u32,
-    /// Sibur.
-    sibur: u32,
-    /// Mendiane.
-    mendiane: u32,
-    /// Phiras.
-    phiras: u32,
-    /// Thystame.
-    thystame: u32,
-}
-
 #[derive(Clone, Copy, Debug)]
 pub struct WorldCell {
     /// Food.
-    food: u32,
+    pub food: u32,
     /// Linemate.
-    linemate: u32,
+    pub linemate: u32,
     /// Deraumere.
-    deraumere: u32,
+    pub deraumere: u32,
     /// Sibur.
-    sibur: u32,
+    pub sibur: u32,
     /// Mendiane.
-    mendiane: u32,
+    pub mendiane: u32,
     /// Phiras.
-    phiras: u32,
+    pub phiras: u32,
     /// Thystame.
-    thystame: u32,
+    pub thystame: u32,
     /// Player count.
-    player_count: u32,
+    pub player_count: u32,
 }
 
 impl WorldCell {
@@ -100,16 +83,16 @@ impl WorldCell {
 /// The world state.
 pub struct World {
     /// The width of the world.
-    pub width: u32,
+    pub width: usize,
     /// The height of the world.
-    pub height: u32,
+    pub height: usize,
     pub cells: Vec<WorldCell>,
 }
 
 impl World {
     /// Creates a new [`World`] with the specified dimensions.
-    pub fn new(width: u32, height: u32, rng: &mut Rng) -> Self {
-        let cells_count = (width * height) as usize;
+    pub fn new(width: usize, height: usize, rng: &mut Rng) -> Self {
+        let cells_count = width * height;
         let cells = (0..cells_count).map(|_| WorldCell::new(rng)).collect();
         Self {
             width,

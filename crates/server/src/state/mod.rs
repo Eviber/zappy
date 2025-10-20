@@ -78,7 +78,7 @@ pub enum Response {
     Ko,
     /// Inventory of the player
     // todo box where needed
-    Inventory([u32; 7]),
+    Inventory(PlayerInventory),
     /// What the player sees
     Sight([Option<WorldCell>; 81]),
     /// The number of available slots in the team.
@@ -95,18 +95,88 @@ impl Response {
                 let result = writeln!(
                     buf,
                     "{{nourriture {}, linemate {}, deraumere {}, sibur {}, mendiane {}, phiras {}, thystame {}}}",
-                    inventory[0],
-                    inventory[1],
-                    inventory[2],
-                    inventory[3],
-                    inventory[4],
-                    inventory[5],
-                    inventory[6]
+                    inventory.food,
+                    inventory.linemate,
+                    inventory.deraumere,
+                    inventory.sibur,
+                    inventory.mendiane,
+                    inventory.phiras,
+                    inventory.thystame,
                 );
                 debug_assert!(result.is_ok(), "writing to a string should never fail");
                 ft_async::futures::write_all(fd, buf.as_bytes()).await?
             }
-            Response::Sight(sight) => ft_async::futures::write_all(fd, b"voir... todo\n").await?,
+            Response::Sight(sight) => {
+                let mut result = write!(buf, "{{");
+                debug_assert!(result.is_ok(), "writing to a string should never fail");
+                for i in 0..81 {
+                    match sight[i] {
+                        Some(cell) => {
+                            for _ in 0..cell.food {
+                                result = write!(buf, "nourriture ");
+                                debug_assert!(
+                                    result.is_ok(),
+                                    "writing to a string should never fail"
+                                );
+                            }
+                            for _ in 0..cell.linemate {
+                                result = write!(buf, "linemate ");
+                                debug_assert!(
+                                    result.is_ok(),
+                                    "writing to a string should never fail"
+                                );
+                            }
+                            for _ in 0..cell.deraumere {
+                                result = write!(buf, "deraumere ");
+                                debug_assert!(
+                                    result.is_ok(),
+                                    "writing to a string should never fail"
+                                );
+                            }
+                            for _ in 0..cell.sibur {
+                                result = write!(buf, "sibur ");
+                                debug_assert!(
+                                    result.is_ok(),
+                                    "writing to a string should never fail"
+                                );
+                            }
+                            for _ in 0..cell.mendiane {
+                                result = write!(buf, "mendiane ");
+                                debug_assert!(
+                                    result.is_ok(),
+                                    "writing to a string should never fail"
+                                );
+                            }
+                            for _ in 0..cell.phiras {
+                                result = write!(buf, "phiras ");
+                                debug_assert!(
+                                    result.is_ok(),
+                                    "writing to a string should never fail"
+                                );
+                            }
+                            for _ in 0..cell.thystame {
+                                result = write!(buf, "thystame ");
+                                debug_assert!(
+                                    result.is_ok(),
+                                    "writing to a string should never fail"
+                                );
+                            }
+                        }
+                        None => break,
+                    }
+                    if (buf.len() > 1) {
+                        buf.pop();
+                    }
+                    result = write!(buf, ", ");
+                    debug_assert!(result.is_ok(), "writing to a string should never fail");
+                }
+                buf.pop();
+                buf.pop();
+                result = writeln!(buf, "}}");
+                debug_assert!(result.is_ok(), "writing to a string should never fail");
+                ft_log::info!("{buf}");
+                ft_async::futures::write_all(fd, buf.as_bytes()).await?;
+            }
             Response::ConnectNbr(nbr) => {
                 // NOTE: This cannot fail because writing to a string in this way will panic in case
                 // of memory allocation failure instead of returning an error.
@@ -138,6 +208,38 @@ pub struct Team {
 
 /// The ID of a player.
 pub type PlayerId = usize;
+
+#[derive(Debug, Clone, Copy)]
+struct PlayerInventory {
+    /// Food.
+    food: u32,
+    /// Linemate.
+    linemate: u32,
+    /// Deraumere.
+    deraumere: u32,
+    /// Sibur.
+    sibur: u32,
+    /// Mendiane.
+    mendiane: u32,
+    /// Phiras.
+    phiras: u32,
+    /// Thystame.
+    thystame: u32,
+}
+
+impl PlayerInventory {
+    pub fn new() -> Self {
+        Self {
+            food: 10,
+            linemate: 0,
+            deraumere: 0,
+            sibur: 0,
+            mendiane: 0,
+            phiras: 0,
+            thystame: 0,
+        }
+    }
+}
 
 /// A direction in which the player can be facing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -192,11 +294,11 @@ pub struct PlayerState {
     level: u32,
     /// Current inventory of the player on the inventory axis.
     /// Indices follow world::ObjectClass order...
-    inventory: [u32; 7],
+    inventory: PlayerInventory,
     /// Current position of the player on the horizontal axis.
-    x: u32,
+    x: usize,
     /// Current position of the player on the vertical axis.
-    y: u32,
+    y: usize,
 }
 
 impl PlayerState {
@@ -227,7 +329,7 @@ impl PlayerState {
     }
 
     /// Advances the player's position based on their current direction.
-    pub fn advance_position(&mut self, width: u32, height: u32) {
+    pub fn advance_position(&mut self, width: usize, height: usize) {
         match self.facing {
             PlayerDirection::North if self.y == height - 1 => self.y = 0,
             PlayerDirection::North => self.y += 1,
@@ -306,6 +408,14 @@ impl State {
 
         team.available_slots -= 1;
 
+        //let x = self.rng.next_u64() as usize % self.world.width;
+        //let y = self.rng.next_u64() as usize % self.world.height;
+
+        let x = 10;
+        let y = 9;
+
+        self.world.cells[x + y * self.world.width].player_count += 1;
+
         self.players.push(Box::new(PlayerState {
             player_id: client.id(),
             team_id,
@@ -318,10 +428,10 @@ impl State {
                 3 => PlayerDirection::West,
                 _ => unreachable!(),
             },
-            inventory: [0; 7],
-            level: 1,
-            x: self.rng.next_u64() as u32 % self.world.width,
-            y: self.rng.next_u64() as u32 % self.world.height,
+            inventory: PlayerInventory::new(),
+            level: 6,
+            x,
+            y,
         }));
 
         Ok(client.id())
@@ -372,20 +482,21 @@ impl State {
                 Response::Ok
             }
             Command::MoveForward => {
+                self.world.cells[player.x + player.y * self.world.width].player_count -= 1;
                 player.advance_position(self.world.width, self.world.height);
+                self.world.cells[player.x + player.y * self.world.width].player_count += 1;
                 Response::Ok
             }
             Command::Inventory => Response::Inventory(player.inventory),
             Command::LookAround => {
-                // 1 << 31 is a magic value to represent a case the player cant see because of his level
-                // todo use option
                 let mut sight = [None; 81];
 
-                sight[0] =
-                    Some(self.world.cells[(player.x + player.y * self.world.width) as usize]);
+                ft_log::info!("START VOIR COMMAND");
+                sight[0] = Some(self.world.cells[player.x + player.y * self.world.width]);
+                //ft_log::info!("x: {}, y: {} data: {:#?}", player.x, player.y, self.world.cells[player.x + player.y * self.world.width]);
+                ft_log::info!("x: {}, y: {}", player.x, player.y);
                 let mut level_tool = 1;
                 // dir represents 2 vectors, the offset dir per level, and the offset dir per case inside that level
-                // todo the second vector is always equal to (-vec1.y, vec1.x)
                 let dir: (i32, i32) = match player.facing {
                     PlayerDirection::North => (0, 1),
                     PlayerDirection::East => (1, 0),
@@ -398,26 +509,31 @@ impl State {
                     }
                     let level_offset = (level_tool - 1) as i32;
                     let level_index = (i as i32 + 1) - level_offset * level_offset;
-                    let mut x_sight = player.x as i32 + level_offset * dir.0 - level_index * dir.1;
-                    let mut y_sight = player.y as i32 + level_offset * dir.1 + level_index * dir.0;
+                    let mut x_sight = player.x as i32
+                        + level_offset * dir.0
+                        + (level_index - level_offset - 1) * dir.1;
+                    let mut y_sight = player.y as i32 + level_offset * dir.1
+                        - (level_index - level_offset - 1) * dir.0;
                     // while because if world size is 1x1 problems would occur
                     while x_sight < 0 {
-                        x_sight += self.world.width as i32;
+                        x_sight += self.world.height as i32;
                     }
                     while x_sight >= self.world.width as i32 {
-                        x_sight -= self.world.width as i32;
+                        x_sight -= self.world.height as i32;
                     }
                     while y_sight < 0 {
-                        y_sight += self.world.height as i32;
+                        y_sight += self.world.width as i32;
                     }
                     while y_sight >= self.world.height as i32 {
-                        y_sight -= self.world.height as i32;
+                        y_sight -= self.world.width as i32;
                     }
+                    //ft_log::info!("x: {x_sight}, y: {y_sight}, data: {:#?}", self.world.cells[(x_sight + y_sight * self.world.width as i32) as usize]);
+                    ft_log::info!("x: {x_sight}, y: {y_sight}");
                     sight[i as usize] = Some(
                         self.world.cells[(x_sight + y_sight * self.world.width as i32) as usize],
                     );
-                    // todo loop other players to check if they are in sight
                 }
+                ft_log::info!("END VOIR COMMAND");
                 Response::Sight(sight)
             }
             _ => Response::Ko,
