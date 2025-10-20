@@ -11,6 +11,7 @@ pub enum ServerMessage {
     PlayerNew(NewPlayer),
     PlayerPosition(PlayerPosition),
     PlayerLevel(PlayerLevel),
+    PlayerDeath(PlayerDeath),
     EggNew(NewEgg),
     EndGame(String),
     Message(String),
@@ -49,6 +50,10 @@ pub struct PlayerPosition {
 pub struct PlayerLevel {
     pub id: u32,
     pub level: u32,
+}
+
+pub struct PlayerDeath {
+    pub id: u32,
 }
 
 pub struct NewEgg {
@@ -151,6 +156,20 @@ impl FromStr for PlayerLevel {
     }
 }
 
+impl FromStr for PlayerDeath {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split_whitespace().collect();
+        if parts.len() != 2 || parts[0] != "pdi" {
+            return Err("Invalid player death format".to_string());
+        }
+        Ok(PlayerDeath {
+            id: parts[1][1..].parse().map_err(int_parse_error)?,
+        })
+    }
+}
+
 impl FromStr for NewEgg {
     type Err = String;
 
@@ -199,7 +218,7 @@ impl FromStr for ServerMessage {
             "pfk" => Err("Player fork not implemented".to_string()),
             "pdr" => Err("Player drop item not implemented".to_string()),
             "pgt" => Err("Player get item not implemented".to_string()),
-            "pdi" => Err("Player death not implemented".to_string()),
+            "pdi" => Ok(ServerMessage::PlayerDeath(s.parse()?)),
             "enw" => Ok(ServerMessage::EggNew(s.parse()?)),
             "eht" => Err("Egg hatching not implemented".to_string()),
             "ebo" => Err("Egg being born not implemented".to_string()),
