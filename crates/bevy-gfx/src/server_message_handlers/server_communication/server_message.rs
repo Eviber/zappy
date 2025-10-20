@@ -10,6 +10,7 @@ pub enum ServerMessage {
     TeamName(String),
     PlayerNew(NewPlayer),
     PlayerPosition(PlayerPosition),
+    PlayerLevel(PlayerLevel),
     EggNew(NewEgg),
     Error(String),
 }
@@ -41,6 +42,11 @@ pub struct PlayerPosition {
     pub x: usize,
     pub y: usize,
     pub orientation: u8,
+}
+
+pub struct PlayerLevel {
+    pub id: u32,
+    pub level: u32,
 }
 
 pub struct NewEgg {
@@ -128,6 +134,21 @@ impl FromStr for PlayerPosition {
     }
 }
 
+impl FromStr for PlayerLevel {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split_whitespace().collect();
+        if parts.len() != 3 || parts[0] != "plv" {
+            return Err("Invalid player level format".to_string());
+        }
+        Ok(PlayerLevel {
+            id: parts[1][1..].parse().map_err(int_parse_error)?,
+            level: parts[2].parse().map_err(int_parse_error)?,
+        })
+    }
+}
+
 impl FromStr for NewEgg {
     type Err = String;
 
@@ -167,7 +188,7 @@ impl FromStr for ServerMessage {
             "tna" => Ok(ServerMessage::TeamName(s[4..].to_string())),
             "pnw" => Ok(ServerMessage::PlayerNew(s.parse()?)),
             "ppo" => Ok(ServerMessage::PlayerPosition(s.parse()?)),
-            "plv" => Err("Player level update not implemented".to_string()),
+            "plv" => Ok(ServerMessage::PlayerLevel(s.parse()?)),
             "pin" => Err("Player inventory update not implemented".to_string()),
             "pex" => Err("Player expulsion not implemented".to_string()),
             "pbc" => Err("Player broadcast not implemented".to_string()),
