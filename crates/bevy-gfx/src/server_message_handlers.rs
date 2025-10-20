@@ -15,6 +15,7 @@ impl Plugin for ServerMessageHandlersPlugin {
             Update,
             (
                 log_server_error,
+                log_server_message,
                 update_map_size,
                 update_game_tick,
                 update_tile_content,
@@ -191,6 +192,15 @@ fn log_server_error(mut reader: MessageReader<ServerMessage>) {
             continue;
         };
         error!("Server error message: {}", msg);
+    }
+}
+
+fn log_server_message(mut reader: MessageReader<ServerMessage>) {
+    for msg in reader.read() {
+        let ServerMessage::Message(msg) = msg else {
+            continue;
+        };
+        info!("Server message: {}", msg);
     }
 }
 
