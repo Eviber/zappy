@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use super::TILE_SIZE;
 
 use super::Ground;
+use super::MapSize;
 use super::Player;
 
 pub(crate) struct DrawPlugin;
@@ -39,13 +40,17 @@ fn axes(mut gizmos: Gizmos, query: Query<(&GlobalTransform,), With<Player>>) {
 }
 
 /// Draw a grid on the ground
-fn grid(ground: Single<&GlobalTransform, With<Ground>>, mut gizmos: Gizmos) {
+fn grid(
+    ground: Single<&GlobalTransform, With<Ground>>,
+    map_size: Res<MapSize>,
+    mut gizmos: Gizmos,
+) {
     gizmos.grid(
         Isometry3d::new(
             ground.translation(),
             Quat::from_rotation_arc(Vec3::Z, ground.up().as_vec3()),
         ),
-        UVec2::new(8, 8),
+        UVec2::new(map_size.width as u32, map_size.height as u32),
         Vec2::splat(TILE_SIZE),
         LinearRgba::gray(0.6),
     );
