@@ -12,6 +12,7 @@ pub enum ServerMessage {
     PlayerPosition(PlayerPosition),
     PlayerLevel(PlayerLevel),
     EggNew(NewEgg),
+    Message(String),
     Error(String),
 }
 
@@ -204,7 +205,7 @@ impl FromStr for ServerMessage {
             "edi" => Err("Egg death not implemented".to_string()),
             "sgt" => Ok(ServerMessage::GameTick(s.parse()?)),
             "seg" => Err("Game end not implemented".to_string()),
-            "smg" => Err(format!("Server message not implemented: {}", &s[4..])),
+            "smg" => Ok(ServerMessage::Message(s[4..].to_string())),
             "suc" => Ok(ServerMessage::Error("Unknown command".to_string())),
             "sbp" => Ok(ServerMessage::Error("Bad parameters".to_string())),
             _ => Err(format!("Unrecognized message format: {s}")),
