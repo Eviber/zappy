@@ -13,6 +13,7 @@ pub enum ServerMessage {
     PlayerLevel(PlayerLevel),
     PlayerDeath(PlayerDeath),
     EggNew(NewEgg),
+    EggDeath(EggDeath),
     EndGame(String),
     Message(String),
     Error(String),
@@ -60,6 +61,10 @@ pub struct NewEgg {
     pub id: u32,
     pub x: usize,
     pub y: usize,
+}
+
+pub struct EggDeath {
+    pub id: u32,
 }
 
 fn int_parse_error(e: std::num::ParseIntError) -> String {
@@ -186,6 +191,20 @@ impl FromStr for NewEgg {
     }
 }
 
+impl FromStr for EggDeath {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split_whitespace().collect();
+        if parts.len() != 2 || parts[0] != "edi" {
+            return Err("Invalid egg death format".to_string());
+        }
+        Ok(EggDeath {
+            id: parts[1][1..].parse().map_err(int_parse_error)?,
+        })
+    }
+}
+
 impl FromStr for UpdateGameTick {
     type Err = String;
 
@@ -222,7 +241,7 @@ impl FromStr for ServerMessage {
             "enw" => Ok(ServerMessage::EggNew(s.parse()?)),
             "eht" => Err("Egg hatching not implemented".to_string()),
             "ebo" => Err("Egg being born not implemented".to_string()),
-            "edi" => Err("Egg death not implemented".to_string()),
+            "edi" => Ok(ServerMessage::EggDeath(s.parse()?)),
             "sgt" => Ok(ServerMessage::GameTick(s.parse()?)),
             "seg" => Ok(ServerMessage::EndGame(s[4..].to_string())),
             "smg" => Ok(ServerMessage::Message(s[4..].to_string())),
