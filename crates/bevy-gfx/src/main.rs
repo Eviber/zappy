@@ -23,6 +23,9 @@ struct Player;
 #[derive(Component)]
 struct Egg;
 
+#[derive(Component)]
+struct HatchingEgg;
+
 const TILE_SIZE: f32 = 5.0;
 
 fn main() {

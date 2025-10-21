@@ -25,6 +25,7 @@ impl Plugin for ServerMessageHandlersPlugin {
                 kill_player,
                 update_player_level,
                 add_egg,
+                hatch_egg,
                 kill_egg,
                 on_game_end,
             ),
@@ -340,6 +341,25 @@ fn add_egg(
             .observe(on_egg_hover)
             .observe(on_unhover);
         info!("Added egg #{}", msg.id);
+    }
+}
+
+fn hatch_egg(
+    mut reader: MessageReader<ServerMessage>,
+    mut commands: Commands,
+    query: Query<(Entity, &Id), With<Egg>>,
+) {
+    for msg in reader.read() {
+        let ServerMessage::EggHatch(msg) = msg else {
+            continue;
+        };
+        if let Some((entity, _)) = query.iter().find(|(_, id)| id.0 == msg.id) {
+            commands.entity(entity).remove::<Egg>();
+            commands.entity(entity).insert(HatchingEgg);
+            info!("Egg #{} is hatching", msg.id);
+        } else {
+            warn!("Received hatch notification for unknown egg #{}", msg.id);
+        }
     }
 }
 
