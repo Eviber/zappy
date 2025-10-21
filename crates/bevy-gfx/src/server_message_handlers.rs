@@ -373,15 +373,19 @@ fn hatch_egg(
 fn kill_egg(
     mut reader: MessageReader<ServerMessage>,
     mut commands: Commands,
-    query: Query<(Entity, &Id), With<Egg>>,
+    query: Query<(Entity, &Id, Has<HatchingEgg>), With<Egg>>,
 ) {
     for msg in reader.read() {
         let ServerMessage::EggDeath(msg) = msg else {
             continue;
         };
-        if let Some((entity, _)) = query.iter().find(|(_, id)| id.0 == msg.id) {
+        if let Some((entity, _, hatched)) = query.iter().find(|(_, id, _)| id.0 == msg.id) {
             commands.entity(entity).despawn();
-            info!("Egg #{} has died and was removed from the game", msg.id);
+            if hatched {
+                info!("Hatched egg #{} has died", msg.id);
+            } else {
+                error!("Unhatched egg #{} has died unexpectedly", msg.id);
+            }
         } else {
             warn!("Received death notification for unknown egg #{}", msg.id);
         }
