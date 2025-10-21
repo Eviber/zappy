@@ -76,6 +76,7 @@ fn setup(
     // camera
     commands.spawn((
         Camera3d::default(),
+        bevy::post_process::bloom::Bloom::NATURAL,
         bevy::pbr::Atmosphere::default(),
         Transform::default(),
     ));
