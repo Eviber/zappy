@@ -383,7 +383,7 @@ fn kill_egg(
             commands.entity(entity).despawn();
             info!("Egg #{} has died and was removed from the game", msg.id);
         } else {
-            warn!("Received hatch notification for unknown egg #{}", msg.id);
+            warn!("Received death notification for unknown egg #{}", msg.id);
         }
     }
 }
