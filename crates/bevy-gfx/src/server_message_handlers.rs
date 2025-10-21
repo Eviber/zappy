@@ -354,7 +354,6 @@ fn hatch_egg(
             continue;
         };
         if let Some((entity, _)) = query.iter().find(|(_, id)| id.0 == msg.id) {
-            commands.entity(entity).remove::<Egg>();
             commands.entity(entity).insert(HatchingEgg);
             info!("Egg #{} is hatching", msg.id);
         } else {
@@ -411,11 +410,19 @@ fn on_player_hover(
     }
 }
 
-fn on_egg_hover(over: On<Pointer<Over>>, query: Query<&Id, With<Egg>>, mut commands: Commands) {
-    if let Ok(id) = query.get(over.entity) {
+fn on_egg_hover(
+    over: On<Pointer<Over>>,
+    query: Query<(&Id, Has<HatchingEgg>), With<Egg>>,
+    mut commands: Commands,
+) {
+    if let Ok((id, false)) = query.get(over.entity) {
         let info = HoverInfo(format!("Egg #{}", id.0));
         commands.insert_resource(info);
         info!("Hovering over egg #{}", id.0);
+    } else if let Ok((id, true)) = query.get(over.entity) {
+        let info = HoverInfo(format!("Egg #{}\n(Hatching)", id.0));
+        commands.insert_resource(info);
+        info!("Hovering over hatching egg #{}", id.0);
     } else {
         error!("Hovered entity is not an egg");
     }
