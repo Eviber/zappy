@@ -24,6 +24,7 @@ impl Plugin for ServerMessageHandlersPlugin {
                 move_player,
                 kill_player,
                 update_player_level,
+                expulse_player,
                 add_egg,
                 hatch_egg,
                 remove_egg_on_player_spawn,
@@ -295,6 +296,23 @@ fn update_player_level(
             info!("Updated player #{} to level {}", msg.id, msg.level);
         } else {
             warn!("Received level update for unknown player #{}", msg.id);
+        }
+    }
+}
+
+fn expulse_player(
+    mut reader: MessageReader<ServerMessage>,
+    mut query: Query<(&Id, &mut Transform), With<Player>>,
+) {
+    for msg in reader.read() {
+        let ServerMessage::PlayerExpulsion(msg) = msg else {
+            continue;
+        };
+        if let Some((_, mut transform)) = query.iter_mut().find(|(id, _)| id.0 == msg.id) {
+            // TODO: add expulsion effect here
+            info!("Player #{} has been expelled!", msg.id);
+        } else {
+            warn!("Received expulsion for unknown player #{}", msg.id);
         }
     }
 }
