@@ -14,6 +14,7 @@ pub enum ServerMessage {
     PlayerDeath(PlayerDeath),
     EggNew(NewEgg),
     EggHatch(EggHatch),
+    PlayerConnectsFromEgg(PlayerConnectsFromEgg),
     EggDeath(EggDeath),
     EndGame(String),
     Message(String),
@@ -66,6 +67,10 @@ pub struct NewEgg {
 
 pub struct EggHatch {
     pub id: u32,
+}
+
+pub struct PlayerConnectsFromEgg {
+    pub egg_id: u32,
 }
 
 pub struct EggDeath {
@@ -210,6 +215,20 @@ impl FromStr for EggHatch {
     }
 }
 
+impl FromStr for PlayerConnectsFromEgg {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split_whitespace().collect();
+        if parts.len() != 2 || parts[0] != "ebo" {
+            return Err("Invalid player connects from egg format".to_string());
+        }
+        Ok(PlayerConnectsFromEgg {
+            egg_id: parts[1][1..].parse().map_err(int_parse_error)?,
+        })
+    }
+}
+
 impl FromStr for EggDeath {
     type Err = String;
 
@@ -259,7 +278,7 @@ impl FromStr for ServerMessage {
             "pdi" => Ok(ServerMessage::PlayerDeath(s.parse()?)),
             "enw" => Ok(ServerMessage::EggNew(s.parse()?)),
             "eht" => Ok(ServerMessage::EggHatch(s.parse()?)),
-            "ebo" => Err("Egg being born not implemented".to_string()),
+            "ebo" => Ok(ServerMessage::PlayerConnectsFromEgg(s.parse()?)),
             "edi" => Ok(ServerMessage::EggDeath(s.parse()?)),
             "sgt" => Ok(ServerMessage::GameTick(s.parse()?)),
             "seg" => Ok(ServerMessage::EndGame(s[4..].to_string())),
