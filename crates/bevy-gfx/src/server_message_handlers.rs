@@ -347,6 +347,7 @@ fn add_egg(
 fn hatch_egg(
     mut reader: MessageReader<ServerMessage>,
     mut commands: Commands,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     query: Query<(Entity, &Id), With<Egg>>,
 ) {
     for msg in reader.read() {
@@ -355,6 +356,13 @@ fn hatch_egg(
         };
         if let Some((entity, _)) = query.iter().find(|(_, id)| id.0 == msg.id) {
             commands.entity(entity).insert(HatchingEgg);
+            commands
+                .entity(entity)
+                .insert(MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: Color::srgb(0.8, 0.8, 0.2),
+                    emissive: LinearRgba::from(Color::srgb(10.0, 10.0, 10.0)),
+                    ..Default::default()
+                })));
             info!("Egg #{} is hatching", msg.id);
         } else {
             warn!("Received hatch notification for unknown egg #{}", msg.id);
