@@ -11,6 +11,7 @@ pub enum ServerMessage {
     PlayerNew(NewPlayer),
     PlayerPosition(PlayerPosition),
     PlayerLevel(PlayerLevel),
+    PlayerExpulsion(PlayerExpulsion),
     PlayerDeath(PlayerDeath),
     EggNew(NewEgg),
     EggHatch(EggHatch),
@@ -53,6 +54,10 @@ pub struct PlayerPosition {
 pub struct PlayerLevel {
     pub id: u32,
     pub level: u32,
+}
+
+pub struct PlayerExpulsion {
+    pub id: u32,
 }
 
 pub struct PlayerDeath {
@@ -171,6 +176,20 @@ impl FromStr for PlayerLevel {
     }
 }
 
+impl FromStr for PlayerExpulsion {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split_whitespace().collect();
+        if parts.len() != 2 || parts[0] != "pex" {
+            return Err("Invalid player expulsion format".to_string());
+        }
+        Ok(PlayerExpulsion {
+            id: parts[1][1..].parse().map_err(int_parse_error)?,
+        })
+    }
+}
+
 impl FromStr for PlayerDeath {
     type Err = String;
 
@@ -268,7 +287,7 @@ impl FromStr for ServerMessage {
             "ppo" => Ok(ServerMessage::PlayerPosition(s.parse()?)),
             "plv" => Ok(ServerMessage::PlayerLevel(s.parse()?)),
             "pin" => Err("Player inventory update not implemented".to_string()),
-            "pex" => Err("Player expulsion not implemented".to_string()),
+            "pex" => Ok(ServerMessage::PlayerExpulsion(s.parse()?)),
             "pbc" => Err("Player broadcast not implemented".to_string()),
             "pic" => Err("Incantation start not implemented".to_string()),
             "pie" => Err("Incantation end not implemented".to_string()),
