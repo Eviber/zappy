@@ -24,6 +24,7 @@ impl Plugin for ServerMessageHandlersPlugin {
                 move_player,
                 kill_player,
                 update_player_level,
+                update_player_inventory,
                 expulse_player,
                 add_egg,
                 hatch_egg,
@@ -214,6 +215,9 @@ fn log_server_message(mut reader: MessageReader<ServerMessage>) {
 struct Level(u32);
 
 #[derive(Component)]
+struct Inventory([u32; 7]);
+
+#[derive(Component)]
 struct Team(String);
 
 #[derive(Component)]
@@ -251,6 +255,7 @@ fn add_player(
                 MeshMaterial3d(materials.add(Color::srgb(0.8, 0.2, 0.2))),
                 transform,
                 Player,
+                Inventory([0; 7]),
                 Level(msg.level),
                 Team(msg.team.clone()),
                 Id(msg.id),
@@ -296,6 +301,23 @@ fn update_player_level(
             info!("Updated player #{} to level {}", msg.id, msg.level);
         } else {
             warn!("Received level update for unknown player #{}", msg.id);
+        }
+    }
+}
+
+fn update_player_inventory(
+    mut reader: MessageReader<ServerMessage>,
+    mut inventory: Query<(&Id, &mut Inventory), With<Player>>,
+) {
+    for msg in reader.read() {
+        let ServerMessage::PlayerInventory(msg) = msg else {
+            continue;
+        };
+        if let Some((_, mut inventory)) = inventory.iter_mut().find(|(id, _)| id.0 == msg.id) {
+            inventory.0 = msg.items;
+            info!("Updated inventory for player #{}: {:?}", msg.id, msg.items);
+        } else {
+            warn!("Received inventory update for unknown player #{}", msg.id);
         }
     }
 }
@@ -448,13 +470,22 @@ pub struct HoverInfo(pub String);
 
 fn on_player_hover(
     over: On<Pointer<Over>>,
-    query: Query<(&Id, &Team, &Level), With<Player>>,
+    query: Query<(&Id, &Team, &Level, &Inventory), With<Player>>,
     mut commands: Commands,
 ) {
-    if let Ok((id, team, level)) = query.get(over.entity) {
+    if let Ok((id, team, level, inventory)) = query.get(over.entity) {
         let info = HoverInfo(format!(
-            "Player #{}\nTeam: {}\nLevel: {}",
-            id.0, team.0, level.0
+            "Player #{}\nTeam: {}\nLevel: {}\n\nInventory:\n  Nourriture: {}\n  Linemate: {}\n  Deraumère: {}\n  Sibur: {}\n  Mendiane: {}\n  Phiras: {}\n  Thystame: {}",
+            id.0,
+            team.0,
+            level.0,
+            inventory.0[0],
+            inventory.0[1],
+            inventory.0[2],
+            inventory.0[3],
+            inventory.0[4],
+            inventory.0[5],
+            inventory.0[6],
         ));
         commands.insert_resource(info);
         info!("Hovering over player #{}", id.0);

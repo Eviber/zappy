@@ -11,6 +11,7 @@ pub enum ServerMessage {
     PlayerNew(NewPlayer),
     PlayerPosition(PlayerPosition),
     PlayerLevel(PlayerLevel),
+    PlayerInventory(PlayerInventory),
     PlayerExpulsion(PlayerExpulsion),
     PlayerDeath(PlayerDeath),
     EggNew(NewEgg),
@@ -54,6 +55,13 @@ pub struct PlayerPosition {
 pub struct PlayerLevel {
     pub id: u32,
     pub level: u32,
+}
+
+pub struct PlayerInventory {
+    pub id: u32,
+    pub x: usize,
+    pub y: usize,
+    pub items: [u32; 7],
 }
 
 pub struct PlayerExpulsion {
@@ -176,6 +184,31 @@ impl FromStr for PlayerLevel {
     }
 }
 
+impl FromStr for PlayerInventory {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split_whitespace().collect();
+        if parts.len() != 11 || parts[0] != "pin" {
+            return Err("Invalid player inventory format".to_string());
+        }
+        Ok(PlayerInventory {
+            id: parts[1][1..].parse().map_err(int_parse_error)?,
+            x: parts[2].parse().map_err(int_parse_error)?,
+            y: parts[3].parse().map_err(int_parse_error)?,
+            items: [
+                parts[4].parse().map_err(int_parse_error)?,
+                parts[5].parse().map_err(int_parse_error)?,
+                parts[6].parse().map_err(int_parse_error)?,
+                parts[7].parse().map_err(int_parse_error)?,
+                parts[8].parse().map_err(int_parse_error)?,
+                parts[9].parse().map_err(int_parse_error)?,
+                parts[10].parse().map_err(int_parse_error)?,
+            ],
+        })
+    }
+}
+
 impl FromStr for PlayerExpulsion {
     type Err = String;
 
@@ -286,7 +319,7 @@ impl FromStr for ServerMessage {
             "pnw" => Ok(ServerMessage::PlayerNew(s.parse()?)),
             "ppo" => Ok(ServerMessage::PlayerPosition(s.parse()?)),
             "plv" => Ok(ServerMessage::PlayerLevel(s.parse()?)),
-            "pin" => Err("Player inventory update not implemented".to_string()),
+            "pin" => Ok(ServerMessage::PlayerInventory(s.parse()?)),
             "pex" => Ok(ServerMessage::PlayerExpulsion(s.parse()?)),
             "pbc" => Err("Player broadcast not implemented".to_string()),
             "pic" => Err("Incantation start not implemented".to_string()),
