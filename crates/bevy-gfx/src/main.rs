@@ -29,6 +29,9 @@ struct Egg;
 #[derive(Component)]
 struct HatchingEgg;
 
+#[derive(Component)]
+struct Forking;
+
 const TILE_SIZE: f32 = 5.0;
 
 fn main() {

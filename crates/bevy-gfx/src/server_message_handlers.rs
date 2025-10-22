@@ -21,6 +21,7 @@ impl Plugin for ServerMessageHandlersPlugin {
                 update_tile_content,
                 add_team,
                 add_player,
+                fork_player,
                 move_player,
                 kill_player,
                 update_player_level,
@@ -339,6 +340,32 @@ fn expulse_player(
     }
 }
 
+fn fork_player(
+    mut reader: MessageReader<ServerMessage>,
+    mut commands: Commands,
+    query: Query<(Entity, &Id), With<Player>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    for msg in reader.read() {
+        let ServerMessage::PlayerForking(msg) = msg else {
+            continue;
+        };
+        if let Some((entity, _)) = query.iter().find(|(_, id)| id.0 == msg.0) {
+            commands.entity(entity).insert(Forking);
+            commands
+                .entity(entity)
+                .insert(MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: Color::srgb(0.2, 0.8, 0.2),
+                    emissive: LinearRgba::from(Color::srgb(10.0, 10.0, 10.0)),
+                    ..Default::default()
+                })));
+            info!("Player #{} is forking!", msg.0);
+        } else {
+            warn!("Received fork notification for unknown player #{}", msg.0);
+        }
+    }
+}
+
 fn kill_player(
     mut reader: MessageReader<ServerMessage>,
     mut commands: Commands,
@@ -362,6 +389,7 @@ fn add_egg(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    forking_players: Query<(&Id, Entity, Has<Forking>), With<Player>>,
 ) {
     for msg in reader.read() {
         let ServerMessage::EggNew(msg) = msg else {
@@ -381,7 +409,24 @@ fn add_egg(
             ))
             .observe(on_egg_hover)
             .observe(on_unhover);
-        info!("Added egg #{}", msg.id);
+        if let Some((id, parent_entity, forking)) = forking_players
+            .iter()
+            .find(|(id, _, _)| id.0 == msg.parent_id)
+        {
+            if forking {
+                commands.entity(parent_entity).remove::<Forking>();
+                commands
+                    .entity(parent_entity)
+                    .insert(MeshMaterial3d(materials.add(Color::srgb(0.8, 0.2, 0.2))));
+            } else {
+                warn!("Egg #{} created from non-forking player #{}", msg.id, id.0);
+                return;
+            }
+        } else {
+            warn!("New egg #{} from unknown player #{}", msg.id, msg.parent_id);
+            return;
+        }
+        info!("Added egg #{} from player #{}", msg.id, msg.parent_id);
     }
 }
 
@@ -470,12 +515,12 @@ pub struct HoverInfo(pub String);
 
 fn on_player_hover(
     over: On<Pointer<Over>>,
-    query: Query<(&Id, &Team, &Level, &Inventory), With<Player>>,
+    query: Query<(&Id, &Team, &Level, &Inventory, Has<Forking>), With<Player>>,
     mut commands: Commands,
 ) {
-    if let Ok((id, team, level, inventory)) = query.get(over.entity) {
+    if let Ok((id, team, level, inventory, forking)) = query.get(over.entity) {
         let info = HoverInfo(format!(
-            "Player #{}\nTeam: {}\nLevel: {}\n\nInventory:\n  Nourriture: {}\n  Linemate: {}\n  Deraumère: {}\n  Sibur: {}\n  Mendiane: {}\n  Phiras: {}\n  Thystame: {}",
+            "Player #{}\nTeam: {}\nLevel: {}\n\nInventory:\n  Nourriture: {}\n  Linemate: {}\n  Deraumère: {}\n  Sibur: {}\n  Mendiane: {}\n  Phiras: {}\n  Thystame: {}{}",
             id.0,
             team.0,
             level.0,
@@ -486,6 +531,7 @@ fn on_player_hover(
             inventory.0[4],
             inventory.0[5],
             inventory.0[6],
+            if forking { "\n\nForking" } else { "" }
         ));
         commands.insert_resource(info);
         info!("Hovering over player #{}", id.0);
