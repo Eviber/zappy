@@ -302,13 +302,13 @@ fn update_player_level(
 
 fn expulse_player(
     mut reader: MessageReader<ServerMessage>,
-    mut query: Query<(&Id, &mut Transform), With<Player>>,
+    mut query: Query<(&Id, &Transform), With<Player>>,
 ) {
     for msg in reader.read() {
         let ServerMessage::PlayerExpulsion(msg) = msg else {
             continue;
         };
-        if let Some((_, mut transform)) = query.iter_mut().find(|(id, _)| id.0 == msg.id) {
+        if let Some((_, _transform)) = query.iter_mut().find(|(id, _)| id.0 == msg.id) {
             // TODO: add expulsion effect here
             info!("Player #{} has been expelled!", msg.id);
         } else {
