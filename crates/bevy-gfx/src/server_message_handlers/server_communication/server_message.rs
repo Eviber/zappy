@@ -12,12 +12,12 @@ pub enum ServerMessage {
     PlayerPosition(PlayerPosition),
     PlayerLevel(PlayerLevel),
     PlayerInventory(PlayerInventory),
-    PlayerExpulsion(PlayerExpulsion),
-    PlayerDeath(PlayerDeath),
+    PlayerExpulsion(Id),
+    PlayerDeath(Id),
     EggNew(NewEgg),
-    EggHatch(EggHatch),
+    EggHatch(Id),
     PlayerConnectsFromEgg(PlayerConnectsFromEgg),
-    EggDeath(EggDeath),
+    EggDeath(Id),
     EndGame(String),
     Message(String),
     Error(String),
@@ -64,13 +64,7 @@ pub struct PlayerInventory {
     pub items: [u32; 7],
 }
 
-pub struct PlayerExpulsion {
-    pub id: u32,
-}
-
-pub struct PlayerDeath {
-    pub id: u32,
-}
+pub struct Id(pub u32);
 
 pub struct NewEgg {
     pub id: u32,
@@ -78,16 +72,8 @@ pub struct NewEgg {
     pub y: usize,
 }
 
-pub struct EggHatch {
-    pub id: u32,
-}
-
 pub struct PlayerConnectsFromEgg {
     pub egg_id: u32,
-}
-
-pub struct EggDeath {
-    pub id: u32,
 }
 
 fn int_parse_error(e: std::num::ParseIntError) -> String {
@@ -209,31 +195,15 @@ impl FromStr for PlayerInventory {
     }
 }
 
-impl FromStr for PlayerExpulsion {
+impl FromStr for Id {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = s.split_whitespace().collect();
-        if parts.len() != 2 || parts[0] != "pex" {
-            return Err("Invalid player expulsion format".to_string());
+        if parts.len() != 2 {
+            return Err("Invalid id format".to_string());
         }
-        Ok(PlayerExpulsion {
-            id: parts[1][1..].parse().map_err(int_parse_error)?,
-        })
-    }
-}
-
-impl FromStr for PlayerDeath {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts: Vec<&str> = s.split_whitespace().collect();
-        if parts.len() != 2 || parts[0] != "pdi" {
-            return Err("Invalid player death format".to_string());
-        }
-        Ok(PlayerDeath {
-            id: parts[1][1..].parse().map_err(int_parse_error)?,
-        })
+        Ok(Id(parts[1][1..].parse().map_err(int_parse_error)?))
     }
 }
 
@@ -253,20 +223,6 @@ impl FromStr for NewEgg {
     }
 }
 
-impl FromStr for EggHatch {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts: Vec<&str> = s.split_whitespace().collect();
-        if parts.len() != 2 || parts[0] != "eht" {
-            return Err("Invalid egg hatch format".to_string());
-        }
-        Ok(EggHatch {
-            id: parts[1][1..].parse().map_err(int_parse_error)?,
-        })
-    }
-}
-
 impl FromStr for PlayerConnectsFromEgg {
     type Err = String;
 
@@ -277,20 +233,6 @@ impl FromStr for PlayerConnectsFromEgg {
         }
         Ok(PlayerConnectsFromEgg {
             egg_id: parts[1][1..].parse().map_err(int_parse_error)?,
-        })
-    }
-}
-
-impl FromStr for EggDeath {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts: Vec<&str> = s.split_whitespace().collect();
-        if parts.len() != 2 || parts[0] != "edi" {
-            return Err("Invalid egg death format".to_string());
-        }
-        Ok(EggDeath {
-            id: parts[1][1..].parse().map_err(int_parse_error)?,
         })
     }
 }
