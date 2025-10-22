@@ -330,11 +330,11 @@ fn expulse_player(
         let ServerMessage::PlayerExpulsion(msg) = msg else {
             continue;
         };
-        if let Some((_, _transform)) = query.iter_mut().find(|(id, _)| id.0 == msg.id) {
+        if let Some((_, _transform)) = query.iter_mut().find(|(id, _)| id.0 == msg.0) {
             // TODO: add expulsion effect here
-            info!("Player #{} has been expelled!", msg.id);
+            info!("Player #{} has been expelled!", msg.0);
         } else {
-            warn!("Received expulsion for unknown player #{}", msg.id);
+            warn!("Received expulsion for unknown player #{}", msg.0);
         }
     }
 }
@@ -348,11 +348,11 @@ fn kill_player(
         let ServerMessage::PlayerDeath(msg) = msg else {
             continue;
         };
-        if let Some((entity, _)) = query.iter().find(|(_, id)| id.0 == msg.id) {
+        if let Some((entity, _)) = query.iter().find(|(_, id)| id.0 == msg.0) {
             commands.entity(entity).despawn();
-            info!("Player #{} has died and was removed from the game", msg.id);
+            info!("Player #{} has died and was removed from the game", msg.0);
         } else {
-            warn!("Received death notification for unknown player #{}", msg.id);
+            warn!("Received death notification for unknown player #{}", msg.0);
         }
     }
 }
@@ -395,7 +395,7 @@ fn hatch_egg(
         let ServerMessage::EggHatch(msg) = msg else {
             continue;
         };
-        if let Some((entity, _)) = query.iter().find(|(_, id)| id.0 == msg.id) {
+        if let Some((entity, _)) = query.iter().find(|(_, id)| id.0 == msg.0) {
             commands.entity(entity).insert(HatchingEgg);
             commands
                 .entity(entity)
@@ -404,9 +404,9 @@ fn hatch_egg(
                     emissive: LinearRgba::from(Color::srgb(10.0, 10.0, 10.0)),
                     ..Default::default()
                 })));
-            info!("Egg #{} is hatching", msg.id);
+            info!("Egg #{} is hatching", msg.0);
         } else {
-            warn!("Received hatch notification for unknown egg #{}", msg.id);
+            warn!("Received hatch notification for unknown egg #{}", msg.0);
         }
     }
 }
@@ -442,15 +442,15 @@ fn kill_egg(
         let ServerMessage::EggDeath(msg) = msg else {
             continue;
         };
-        if let Some((entity, _, hatched)) = query.iter().find(|(_, id, _)| id.0 == msg.id) {
+        if let Some((entity, _, hatched)) = query.iter().find(|(_, id, _)| id.0 == msg.0) {
             commands.entity(entity).despawn();
             if hatched {
-                info!("Hatched egg #{} has died", msg.id);
+                info!("Hatched egg #{} has died", msg.0);
             } else {
-                error!("Unhatched egg #{} has died unexpectedly", msg.id);
+                error!("Unhatched egg #{} has died unexpectedly", msg.0);
             }
         } else {
-            warn!("Received death notification for unknown egg #{}", msg.id);
+            warn!("Received death notification for unknown egg #{}", msg.0);
         }
     }
 }
