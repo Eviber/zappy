@@ -18,6 +18,11 @@ impl Plugin for ServerMessageHandlersPlugin {
                 log_server_message,
                 update_map_size,
                 update_game_tick,
+            ),
+        );
+        app.add_systems(
+            Update,
+            (
                 update_tile_content,
                 add_team,
                 add_player,
@@ -29,6 +34,7 @@ impl Plugin for ServerMessageHandlersPlugin {
                 update_player_level,
                 update_player_inventory,
                 expulse_player,
+                player_broadcast,
                 add_egg,
                 hatch_egg,
                 remove_egg_on_player_spawn,
@@ -448,6 +454,22 @@ fn kill_player(
             info!("Player #{} has died and was removed from the game", msg.0);
         } else {
             warn!("Received death notification for unknown player #{}", msg.0);
+        }
+    }
+}
+
+fn player_broadcast(mut reader: MessageReader<ServerMessage>, query: Query<&Id, With<Player>>) {
+    for msg in reader.read() {
+        let ServerMessage::PlayerBroadcast(msg) = msg else {
+            continue;
+        };
+        if query.iter().any(|id| id.0 == msg.id) {
+            info!("Player #{} broadcasted message: {}", msg.id, msg.message);
+        } else {
+            warn!(
+                "Unknown player #{} broadcasted message: {}",
+                msg.id, msg.message
+            );
         }
     }
 }
