@@ -13,6 +13,7 @@ pub enum ServerMessage {
     PlayerLevel(PlayerLevel),
     PlayerInventory(PlayerInventory),
     PlayerExpulsion(Id),
+    PlayerBroadcast(PlayerBroadcast),
     PlayerForking(Id),
     PlayerDropItem(PlayerItemInteraction),
     PlayerGetItem(PlayerItemInteraction),
@@ -73,6 +74,11 @@ pub struct PlayerItemInteraction {
 }
 
 pub struct Id(pub u32);
+
+pub struct PlayerBroadcast {
+    pub id: u32,
+    pub message: String,
+}
 
 pub struct NewEgg {
     pub id: u32,
@@ -231,6 +237,21 @@ impl FromStr for Id {
     }
 }
 
+impl FromStr for PlayerBroadcast {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split_whitespace().collect();
+        if parts.len() < 3 || parts[0] != "pbc" {
+            return Err("Invalid player broadcast format".to_string());
+        }
+        Ok(PlayerBroadcast {
+            id: parts[1][1..].parse().map_err(int_parse_error)?,
+            message: parts[2..].join(" "),
+        })
+    }
+}
+
 impl FromStr for NewEgg {
     type Err = String;
 
@@ -288,7 +309,7 @@ impl FromStr for ServerMessage {
             "plv" => Ok(ServerMessage::PlayerLevel(s.parse()?)),
             "pin" => Ok(ServerMessage::PlayerInventory(s.parse()?)),
             "pex" => Ok(ServerMessage::PlayerExpulsion(s.parse()?)),
-            "pbc" => Err("Player broadcast not implemented".to_string()),
+            "pbc" => Ok(ServerMessage::PlayerBroadcast(s.parse()?)),
             "pic" => Err("Incantation start not implemented".to_string()),
             "pie" => Err("Incantation end not implemented".to_string()),
             "pfk" => Ok(ServerMessage::PlayerForking(s.parse()?)),
