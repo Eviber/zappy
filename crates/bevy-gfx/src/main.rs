@@ -1,3 +1,6 @@
+#![allow(clippy::type_complexity)]
+#![allow(clippy::too_many_arguments)]
+
 mod draw;
 mod server_message_handlers;
 mod user_input;
