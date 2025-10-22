@@ -59,8 +59,8 @@ pub struct PlayerLevel {
 
 pub struct PlayerInventory {
     pub id: u32,
-    pub x: usize,
-    pub y: usize,
+    pub _x: usize,
+    pub _y: usize,
     pub items: [u32; 7],
 }
 
@@ -194,8 +194,8 @@ impl FromStr for PlayerInventory {
         }
         Ok(PlayerInventory {
             id: parts[1][1..].parse().map_err(int_parse_error)?,
-            x: parts[2].parse().map_err(int_parse_error)?,
-            y: parts[3].parse().map_err(int_parse_error)?,
+            _x: parts[2].parse().map_err(int_parse_error)?,
+            _y: parts[3].parse().map_err(int_parse_error)?,
             items: [
                 parts[4].parse().map_err(int_parse_error)?,
                 parts[5].parse().map_err(int_parse_error)?,
