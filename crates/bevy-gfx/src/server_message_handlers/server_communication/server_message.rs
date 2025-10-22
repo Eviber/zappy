@@ -13,6 +13,7 @@ pub enum ServerMessage {
     PlayerLevel(PlayerLevel),
     PlayerInventory(PlayerInventory),
     PlayerExpulsion(Id),
+    PlayerForking(Id),
     PlayerDeath(Id),
     EggNew(NewEgg),
     EggHatch(Id),
@@ -68,6 +69,7 @@ pub struct Id(pub u32);
 
 pub struct NewEgg {
     pub id: u32,
+    pub parent_id: u32,
     pub x: usize,
     pub y: usize,
 }
@@ -212,13 +214,14 @@ impl FromStr for NewEgg {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = s.split_whitespace().collect();
-        if parts.len() != 4 || parts[0] != "enw" {
+        if parts.len() != 5 || parts[0] != "enw" {
             return Err("Invalid new egg format".to_string());
         }
         Ok(NewEgg {
             id: parts[1][1..].parse().map_err(int_parse_error)?,
-            x: parts[2].parse().map_err(int_parse_error)?,
-            y: parts[3].parse().map_err(int_parse_error)?,
+            parent_id: parts[2][1..].parse().map_err(int_parse_error)?,
+            x: parts[3].parse().map_err(int_parse_error)?,
+            y: parts[4].parse().map_err(int_parse_error)?,
         })
     }
 }
@@ -266,7 +269,7 @@ impl FromStr for ServerMessage {
             "pbc" => Err("Player broadcast not implemented".to_string()),
             "pic" => Err("Incantation start not implemented".to_string()),
             "pie" => Err("Incantation end not implemented".to_string()),
-            "pfk" => Err("Player fork not implemented".to_string()),
+            "pfk" => Ok(ServerMessage::PlayerForking(s.parse()?)),
             "pdr" => Err("Player drop item not implemented".to_string()),
             "pgt" => Err("Player get item not implemented".to_string()),
             "pdi" => Ok(ServerMessage::PlayerDeath(s.parse()?)),
