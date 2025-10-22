@@ -14,6 +14,8 @@ pub enum ServerMessage {
     PlayerInventory(PlayerInventory),
     PlayerExpulsion(Id),
     PlayerForking(Id),
+    PlayerDropItem(PlayerItemInteraction),
+    PlayerGetItem(PlayerItemInteraction),
     PlayerDeath(Id),
     EggNew(NewEgg),
     EggHatch(Id),
@@ -41,7 +43,7 @@ pub struct NewPlayer {
     pub id: u32,
     pub x: usize,
     pub y: usize,
-    pub orientation: u8,
+    pub orientation: u32,
     pub level: u32,
     pub team: String,
 }
@@ -50,7 +52,7 @@ pub struct PlayerPosition {
     pub id: u32,
     pub x: usize,
     pub y: usize,
-    pub orientation: u8,
+    pub orientation: u32,
 }
 
 pub struct PlayerLevel {
@@ -63,6 +65,11 @@ pub struct PlayerInventory {
     pub _x: usize,
     pub _y: usize,
     pub items: [u32; 7],
+}
+
+pub struct PlayerItemInteraction {
+    pub player_id: u32,
+    pub item_id: u32,
 }
 
 pub struct Id(pub u32);
@@ -197,6 +204,21 @@ impl FromStr for PlayerInventory {
     }
 }
 
+impl FromStr for PlayerItemInteraction {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split_whitespace().collect();
+        if parts.len() != 3 {
+            return Err("Invalid player item interaction format".to_string());
+        }
+        Ok(PlayerItemInteraction {
+            player_id: parts[1][1..].parse().map_err(int_parse_error)?,
+            item_id: parts[2].parse().map_err(int_parse_error)?,
+        })
+    }
+}
+
 impl FromStr for Id {
     type Err = String;
 
@@ -270,8 +292,8 @@ impl FromStr for ServerMessage {
             "pic" => Err("Incantation start not implemented".to_string()),
             "pie" => Err("Incantation end not implemented".to_string()),
             "pfk" => Ok(ServerMessage::PlayerForking(s.parse()?)),
-            "pdr" => Err("Player drop item not implemented".to_string()),
-            "pgt" => Err("Player get item not implemented".to_string()),
+            "pdr" => Ok(ServerMessage::PlayerDropItem(s.parse()?)),
+            "pgt" => Ok(ServerMessage::PlayerGetItem(s.parse()?)),
             "pdi" => Ok(ServerMessage::PlayerDeath(s.parse()?)),
             "enw" => Ok(ServerMessage::EggNew(s.parse()?)),
             "eht" => Ok(ServerMessage::EggHatch(s.parse()?)),

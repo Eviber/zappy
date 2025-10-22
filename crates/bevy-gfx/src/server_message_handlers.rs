@@ -23,6 +23,8 @@ impl Plugin for ServerMessageHandlersPlugin {
                 add_player,
                 fork_player,
                 move_player,
+                player_drop_item,
+                player_get_item,
                 kill_player,
                 update_player_level,
                 update_player_inventory,
@@ -98,16 +100,16 @@ enum Item {
 }
 
 impl Item {
-    fn from_index(index: usize) -> Self {
+    fn try_from_index(index: u32) -> Option<Self> {
         match index {
-            0 => Item::Nourriture,
-            1 => Item::Linemate,
-            2 => Item::Deraumère,
-            3 => Item::Sibur,
-            4 => Item::Mendiane,
-            5 => Item::Phiras,
-            6 => Item::Thystame,
-            _ => panic!("Invalid resource index"),
+            0 => Some(Item::Nourriture),
+            1 => Some(Item::Linemate),
+            2 => Some(Item::Deraumère),
+            3 => Some(Item::Sibur),
+            4 => Some(Item::Mendiane),
+            5 => Some(Item::Phiras),
+            6 => Some(Item::Thystame),
+            _ => None,
         }
     }
 
@@ -138,6 +140,21 @@ impl Item {
     }
 }
 
+impl std::fmt::Display for Item {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            Item::Nourriture => "Nourriture",
+            Item::Linemate => "Linemate",
+            Item::Deraumère => "Deraumère",
+            Item::Sibur => "Sibur",
+            Item::Mendiane => "Mendiane",
+            Item::Phiras => "Phiras",
+            Item::Thystame => "Thystame",
+        };
+        write!(f, "{}", name)
+    }
+}
+
 #[derive(Resource, Default)]
 struct TileStacks(std::collections::HashMap<(usize, usize), [Vec<Entity>; 7]>);
 
@@ -161,7 +178,10 @@ fn update_tile_content(
         }
         // Add new resources
         for (index, &count) in msg.items.iter().enumerate() {
-            let resource_type = Item::from_index(index);
+            let Some(resource_type) = Item::try_from_index(index as u32) else {
+                warn!("Invalid resource index: {}", index);
+                continue;
+            };
             for _ in 0..count {
                 let delta = resource_type.delta_vec();
                 let entity = commands
@@ -224,7 +244,7 @@ struct Team(String);
 #[derive(Component)]
 struct Id(u32);
 
-fn player_transform_from_pos(x: usize, y: usize, orientation: u8) -> Transform {
+fn player_transform_from_pos(x: usize, y: usize, orientation: u32) -> Transform {
     let rotation = match orientation {
         1 => Quat::from_rotation_y(0.),                           // North
         2 => Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2), // East
@@ -320,6 +340,54 @@ fn update_player_inventory(
         } else {
             warn!("Received inventory update for unknown player #{}", msg.id);
         }
+    }
+}
+
+// Don't actually change the world state, as the server will send the proper updates
+fn player_drop_item(
+    mut reader: MessageReader<ServerMessage>,
+    query: Query<(&Id, &Transform), With<Player>>,
+) {
+    for msg in reader.read() {
+        let ServerMessage::PlayerDropItem(msg) = msg else {
+            continue;
+        };
+        let Some(item) = Item::try_from_index(msg.item_id) else {
+            warn!(
+                "Received drop item with invalid item id {} from player #{}",
+                msg.item_id, msg.player_id
+            );
+            continue;
+        };
+        let Some((_, _transform)) = query.iter().find(|(id, _)| id.0 == msg.player_id) else {
+            warn!("Received drop item from unknown player #{}", msg.player_id);
+            continue;
+        };
+        info!("Player #{} dropped item {}", msg.player_id, item);
+    }
+}
+
+// Same as above
+fn player_get_item(
+    mut reader: MessageReader<ServerMessage>,
+    query: Query<(&Id, &Transform), With<Player>>,
+) {
+    for msg in reader.read() {
+        let ServerMessage::PlayerGetItem(msg) = msg else {
+            continue;
+        };
+        let Some(item) = Item::try_from_index(msg.item_id) else {
+            warn!(
+                "Received get item with invalid item id {} from player #{}",
+                msg.item_id, msg.player_id
+            );
+            continue;
+        };
+        let Some((_, _transform)) = query.iter().find(|(id, _)| id.0 == msg.player_id) else {
+            warn!("Received get item from unknown player #{}", msg.player_id);
+            continue;
+        };
+        info!("Player #{} got item {}", msg.player_id, item);
     }
 }
 
