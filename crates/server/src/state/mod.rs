@@ -164,7 +164,7 @@ impl Response {
                         }
                         None => break,
                     }
-                    if (buf.len() > 1) {
+                    if buf.len() > 1 {
                         buf.pop();
                     }
                     result = write!(buf, ", ");
@@ -174,7 +174,6 @@ impl Response {
                 buf.pop();
                 result = writeln!(buf, "}}");
                 debug_assert!(result.is_ok(), "writing to a string should never fail");
-                ft_log::info!("{buf}");
                 ft_async::futures::write_all(fd, buf.as_bytes()).await?;
             }
             Response::ConnectNbr(nbr) => {
@@ -243,12 +242,10 @@ impl PlayerInventory {
 
 /// A direction in which the player can be facing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-// TODO fix inconsistence between doc and actual Y computation
-// TODO make direction order consistent in matches
 pub enum PlayerDirection {
-    /// The player faces the negative Y direction.
-    North,
     /// The player faces the positive Y direction.
+    North,
+    /// The player faces the negative Y direction.
     South,
     /// The player faces the negative X direction.
     West,
@@ -408,14 +405,13 @@ impl State {
 
         team.available_slots -= 1;
 
-        //let x = self.rng.next_u64() as usize % self.world.width;
-        //let y = self.rng.next_u64() as usize % self.world.height;
-
-        let x = 10;
-        let y = 9;
+        let x = self.rng.next_u64() as usize % self.world.width;
+        let y = self.rng.next_u64() as usize % self.world.height;
 
         self.world.cells[x + y * self.world.width].player_count += 1;
 
+        // TODO when implementing fork/egg count the time elapsed before actually
+        // connecting and adapt food/time to live in inventory
         self.players.push(Box::new(PlayerState {
             player_id: client.id(),
             team_id,
@@ -423,13 +419,13 @@ impl State {
             commands: ArrayVec::new(),
             facing: match self.rng.next_u64() % 4 {
                 0 => PlayerDirection::North,
-                1 => PlayerDirection::East,
-                2 => PlayerDirection::South,
+                1 => PlayerDirection::South,
+                2 => PlayerDirection::East,
                 3 => PlayerDirection::West,
                 _ => unreachable!(),
             },
             inventory: PlayerInventory::new(),
-            level: 6,
+            level: 1,
             x,
             y,
         }));
@@ -491,16 +487,13 @@ impl State {
             Command::LookAround => {
                 let mut sight = [None; 81];
 
-                ft_log::info!("START VOIR COMMAND");
                 sight[0] = Some(self.world.cells[player.x + player.y * self.world.width]);
-                //ft_log::info!("x: {}, y: {} data: {:#?}", player.x, player.y, self.world.cells[player.x + player.y * self.world.width]);
-                ft_log::info!("x: {}, y: {}", player.x, player.y);
                 let mut level_tool = 1;
-                // dir represents 2 vectors, the offset dir per level, and the offset dir per case inside that level
+                // dir represents 2 2d vectors, the offset dir per level, and the offset dir per case inside that level
                 let dir: (i32, i32) = match player.facing {
                     PlayerDirection::North => (0, 1),
-                    PlayerDirection::East => (1, 0),
                     PlayerDirection::South => (0, -1),
+                    PlayerDirection::East => (1, 0),
                     PlayerDirection::West => (-1, 0),
                 };
                 for i in 1..(player.level + 1) * (player.level + 1) {
@@ -509,31 +502,22 @@ impl State {
                     }
                     let level_offset = (level_tool - 1) as i32;
                     let level_index = (i as i32 + 1) - level_offset * level_offset;
+
+                    // trick to reduce tuple size used here
                     let mut x_sight = player.x as i32
                         + level_offset * dir.0
                         + (level_index - level_offset - 1) * dir.1;
                     let mut y_sight = player.y as i32 + level_offset * dir.1
                         - (level_index - level_offset - 1) * dir.0;
-                    // while because if world size is 1x1 problems would occur
-                    while x_sight < 0 {
-                        x_sight += self.world.height as i32;
-                    }
-                    while x_sight >= self.world.width as i32 {
-                        x_sight -= self.world.height as i32;
-                    }
-                    while y_sight < 0 {
-                        y_sight += self.world.width as i32;
-                    }
-                    while y_sight >= self.world.height as i32 {
-                        y_sight -= self.world.width as i32;
-                    }
-                    //ft_log::info!("x: {x_sight}, y: {y_sight}, data: {:#?}", self.world.cells[(x_sight + y_sight * self.world.width as i32) as usize]);
-                    ft_log::info!("x: {x_sight}, y: {y_sight}");
+                    // these << 4 lines are because if world size is smaller than some number index out of bounds might occur
+                    x_sight += (self.world.width as i32) << 4;
+                    x_sight %= self.world.width as i32;
+                    y_sight += (self.world.height as i32) << 4;
+                    y_sight %= self.world.height as i32;
                     sight[i as usize] = Some(
                         self.world.cells[(x_sight + y_sight * self.world.width as i32) as usize],
                     );
                 }
-                ft_log::info!("END VOIR COMMAND");
                 Response::Sight(sight)
             }
             _ => Response::Ko,

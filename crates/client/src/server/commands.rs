@@ -230,7 +230,6 @@ where
         }
         seen.push(row_vec);
     }
-    println!("{:#?}", seen);
     Ok(Seen(seen))
 }
 
@@ -274,7 +273,6 @@ impl FromStr for Object {
     type Err = InvalidMsg;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        println!("s from_str {s}");
         match s {
             "nourriture" => Ok(Object::Food),
             "linemate" => Ok(Object::Linemate),
