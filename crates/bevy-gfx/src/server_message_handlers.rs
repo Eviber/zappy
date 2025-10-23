@@ -35,6 +35,8 @@ impl Plugin for ServerMessageHandlersPlugin {
                 update_player_inventory,
                 expulse_player,
                 player_broadcast,
+                start_incantation,
+                // end_incantation,
                 add_egg,
                 hatch_egg,
                 remove_egg_on_player_spawn,
@@ -473,6 +475,24 @@ fn player_broadcast(mut reader: MessageReader<ServerMessage>, query: Query<&Id, 
         }
     }
 }
+
+// pub struct IncantationStart {
+//     pub x: usize,
+//     pub y: usize,
+//     pub incantation_level: u32,
+//     pub players: Vec<u32>,
+// }
+
+#[derive(Component)]
+struct Incanting;
+
+fn start_incantation() {}
+
+// pub struct IncantationEnd {
+//     pub x: usize,
+//     pub y: usize,
+//     pub success: bool,
+// }
 
 fn add_egg(
     mut reader: MessageReader<ServerMessage>,
