@@ -18,6 +18,8 @@ pub enum ServerMessage {
     PlayerDropItem(PlayerItemInteraction),
     PlayerGetItem(PlayerItemInteraction),
     PlayerDeath(Id),
+    IncantationStart(IncantationStart),
+    IncantationEnd(IncantationEnd),
     EggNew(NewEgg),
     EggHatch(Id),
     PlayerConnectsFromEgg(PlayerConnectsFromEgg),
@@ -78,6 +80,19 @@ pub struct Id(pub u32);
 pub struct PlayerBroadcast {
     pub id: u32,
     pub message: String,
+}
+
+pub struct IncantationStart {
+    pub x: usize,
+    pub y: usize,
+    pub incantation_level: u32,
+    pub players: Vec<u32>,
+}
+
+pub struct IncantationEnd {
+    pub x: usize,
+    pub y: usize,
+    pub success: bool,
 }
 
 pub struct NewEgg {
@@ -252,6 +267,47 @@ impl FromStr for PlayerBroadcast {
     }
 }
 
+impl FromStr for IncantationStart {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split_whitespace().collect();
+        if parts.len() < 5 || parts[0] != "pic" {
+            return Err("Invalid incantation start format".to_string());
+        }
+        let players = parts[4..]
+            .iter()
+            .map(|p| p[1..].parse().map_err(int_parse_error))
+            .collect::<Result<Vec<u32>, String>>()?;
+        Ok(IncantationStart {
+            x: parts[1].parse().map_err(int_parse_error)?,
+            y: parts[2].parse().map_err(int_parse_error)?,
+            incantation_level: parts[3].parse().map_err(int_parse_error)?,
+            players,
+        })
+    }
+}
+
+impl FromStr for IncantationEnd {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split_whitespace().collect();
+        if parts.len() != 4 || parts[0] != "pie" {
+            return Err("Invalid incantation end format".to_string());
+        }
+        Ok(IncantationEnd {
+            x: parts[1].parse().map_err(int_parse_error)?,
+            y: parts[2].parse().map_err(int_parse_error)?,
+            success: match parts[3] {
+                "1" => true,
+                "0" => false,
+                _ => return Err("Invalid success value".to_string()),
+            },
+        })
+    }
+}
+
 impl FromStr for NewEgg {
     type Err = String;
 
@@ -310,8 +366,8 @@ impl FromStr for ServerMessage {
             "pin" => Ok(ServerMessage::PlayerInventory(s.parse()?)),
             "pex" => Ok(ServerMessage::PlayerExpulsion(s.parse()?)),
             "pbc" => Ok(ServerMessage::PlayerBroadcast(s.parse()?)),
-            "pic" => Err("Incantation start not implemented".to_string()),
-            "pie" => Err("Incantation end not implemented".to_string()),
+            "pic" => Ok(ServerMessage::IncantationStart(s.parse()?)),
+            "pie" => Ok(ServerMessage::IncantationEnd(s.parse()?)),
             "pfk" => Ok(ServerMessage::PlayerForking(s.parse()?)),
             "pdr" => Ok(ServerMessage::PlayerDropItem(s.parse()?)),
             "pgt" => Ok(ServerMessage::PlayerGetItem(s.parse()?)),
