@@ -149,6 +149,8 @@ impl FromStr for UpdateTileContent {
     }
 }
 
+// TODO: Make the # in front of IDs optional
+
 impl FromStr for NewPlayer {
     type Err = String;
 
@@ -355,6 +357,9 @@ impl FromStr for ServerMessage {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.len() < 3 {
+            return Err(format!("Unrecognized message format: \"{s}\""));
+        }
         let command = &s[..3];
         match command {
             "msz" => Ok(ServerMessage::MapSize(s.parse()?)),
