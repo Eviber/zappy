@@ -10,7 +10,7 @@ pub(crate) struct ServerMessageHandlersPlugin;
 impl Plugin for ServerMessageHandlersPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(TileStacks::default());
-        app.add_plugins(ServerCommunicationPlugin);
+        app.add_plugins(ServerCommunicationPlugin::default());
         app.add_systems(
             Update,
             (
