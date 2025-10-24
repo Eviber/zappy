@@ -36,7 +36,7 @@ impl Plugin for ServerMessageHandlersPlugin {
                 expulse_player,
                 player_broadcast,
                 start_incantation,
-                // end_incantation,
+                end_incantation,
                 add_egg,
                 hatch_egg,
                 remove_egg_on_player_spawn,
@@ -476,23 +476,69 @@ fn player_broadcast(mut reader: MessageReader<ServerMessage>, query: Query<&Id, 
     }
 }
 
-// pub struct IncantationStart {
-//     pub x: usize,
-//     pub y: usize,
-//     pub incantation_level: u32,
-//     pub players: Vec<u32>,
-// }
-
 #[derive(Component)]
 struct Incanting;
 
-fn start_incantation() {}
+fn start_incantation(
+    mut reader: MessageReader<ServerMessage>,
+    mut commands: Commands,
+    mut players: Query<(Entity, &Id, &mut Transform), With<Player>>,
+) {
+    for msg in reader.read() {
+        let ServerMessage::IncantationStart(msg) = msg else {
+            continue;
+        };
+        for player_id in msg.players.iter() {
+            if let Some((entity, _, mut transform)) =
+                players.iter_mut().find(|(_, id, _)| id.0 == *player_id)
+            {
+                commands.entity(entity).insert(Incanting);
+                transform.translation.y += 0.5;
+                info!(
+                    "Player #{} is participating in incantation at ({}, {})",
+                    player_id, msg.x, msg.y
+                );
+            } else {
+                warn!(
+                    "Player #{} listed in incantation at ({}, {}) not found",
+                    player_id, msg.x, msg.y
+                );
+            }
+        }
+    }
+}
 
-// pub struct IncantationEnd {
-//     pub x: usize,
-//     pub y: usize,
-//     pub success: bool,
-// }
+fn end_incantation(
+    mut reader: MessageReader<ServerMessage>,
+    mut commands: Commands,
+    mut players: Query<(Entity, &mut Transform), (With<Player>, With<Incanting>)>,
+) {
+    for msg in reader.read() {
+        let ServerMessage::IncantationEnd(msg) = msg else {
+            continue;
+        };
+        for (entity, mut transform) in players.iter_mut() {
+            let pos_x = transform.translation.x as usize / TILE_SIZE as usize;
+            let pos_y = transform.translation.z as usize / TILE_SIZE as usize;
+            if pos_x != msg.x || pos_y != msg.y {
+                continue;
+            }
+            commands.entity(entity).remove::<Incanting>();
+            transform.translation.y -= 0.5;
+        }
+        if !msg.success {
+            info!(
+                "Incantation at ({}, {}) failed. Players return to normal state.",
+                msg.x, msg.y
+            );
+        } else {
+            info!(
+                "Incantation at ({}, {}) succeeded. Players return to normal state.",
+                msg.x, msg.y
+            );
+        }
+    }
+}
 
 fn add_egg(
     mut reader: MessageReader<ServerMessage>,
