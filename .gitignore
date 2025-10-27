@@ -1,6 +1,7 @@
 /target
 /crates/server/target/
 **.DS_Store
+*.swp
 
 /server
 /client
