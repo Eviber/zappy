@@ -164,9 +164,9 @@ pub struct PlayerState {
     /// A direction in which the player is facing.
     facing: PlayerDirection,
     /// Current position of the player on the horizontal axis.
-    x: u32,
+    x: usize,
     /// Current position of the player on the vertical axis.
-    y: u32,
+    y: usize,
 }
 
 impl PlayerState {
@@ -197,7 +197,7 @@ impl PlayerState {
     }
 
     /// Advances the player's position based on their current direction.
-    pub fn advance_position(&mut self, width: u32, height: u32) {
+    pub fn advance_position(&mut self, width: usize, height: usize) {
         match self.facing {
             PlayerDirection::North if self.y == height - 1 => self.y = 0,
             PlayerDirection::North => self.y += 1,
@@ -287,8 +287,8 @@ impl State {
                 3 => PlayerDirection::West,
                 _ => unreachable!(),
             },
-            x: self.rng.next_u64() as u32 % self.world.width,
-            y: self.rng.next_u64() as u32 % self.world.height,
+            x: self.rng.next_u64() as usize % self.world.width,
+            y: self.rng.next_u64() as usize % self.world.height,
         }));
 
         Ok(client.id())
