@@ -1,4 +1,5 @@
 use crate::Vec;
+use alloc::vec;
 
 /// The class of an object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -35,7 +36,7 @@ impl ObjectClass {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct WorldCell {
     /// Food.
     pub food: u32,
@@ -53,6 +54,8 @@ pub struct WorldCell {
     pub thystame: u32,
     /// Player count.
     pub player_count: u32,
+    /// Egg count.
+    pub egg_count: u32,
 }
 
 /// The world state.
@@ -71,7 +74,7 @@ impl World {
         Self {
             width,
             height,
-            _cells: Vec::new(),
+            _cells: vec![WorldCell::default(); (width * height) as usize],
         }
     }
 }
