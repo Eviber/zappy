@@ -119,14 +119,14 @@ pub type PlayerId = usize;
 /// A direction in which the player can be facing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlayerDirection {
-    /// The player faces the negative Y direction.
-    North,
     /// The player faces the positive Y direction.
+    North,
+    /// The player faces the positive X direction.
+    East,
+    /// The player faces the negative Y direction.
     South,
     /// The player faces the negative X direction.
     West,
-    /// The player faces the positive X direction.
-    East,
 }
 
 impl PlayerDirection {
@@ -134,9 +134,9 @@ impl PlayerDirection {
     pub fn turn_right(self) -> Self {
         match self {
             PlayerDirection::North => PlayerDirection::East,
+            PlayerDirection::East => PlayerDirection::South,
             PlayerDirection::South => PlayerDirection::West,
             PlayerDirection::West => PlayerDirection::North,
-            PlayerDirection::East => PlayerDirection::South,
         }
     }
 
@@ -144,9 +144,9 @@ impl PlayerDirection {
     pub fn turn_left(self) -> Self {
         match self {
             PlayerDirection::North => PlayerDirection::West,
+            PlayerDirection::East => PlayerDirection::North,
             PlayerDirection::South => PlayerDirection::East,
             PlayerDirection::West => PlayerDirection::South,
-            PlayerDirection::East => PlayerDirection::North,
         }
     }
 }
@@ -164,9 +164,9 @@ pub struct PlayerState {
     /// A direction in which the player is facing.
     facing: PlayerDirection,
     /// Current position of the player on the horizontal axis.
-    x: u32,
+    x: usize,
     /// Current position of the player on the vertical axis.
-    y: u32,
+    y: usize,
 }
 
 impl PlayerState {
@@ -197,16 +197,16 @@ impl PlayerState {
     }
 
     /// Advances the player's position based on their current direction.
-    pub fn advance_position(&mut self, width: u32, height: u32) {
+    pub fn advance_position(&mut self, width: usize, height: usize) {
         match self.facing {
             PlayerDirection::North if self.y == height - 1 => self.y = 0,
             PlayerDirection::North => self.y += 1,
+            PlayerDirection::East if self.x == width - 1 => self.x = 0,
+            PlayerDirection::East => self.x += 1,
             PlayerDirection::South if self.y == 0 => self.y = height - 1,
             PlayerDirection::South => self.y -= 1,
             PlayerDirection::West if self.x == 0 => self.x = width - 1,
             PlayerDirection::West => self.x -= 1,
-            PlayerDirection::East if self.x == width - 1 => self.x = 0,
-            PlayerDirection::East => self.x += 1,
         }
     }
 }
@@ -287,8 +287,8 @@ impl State {
                 3 => PlayerDirection::West,
                 _ => unreachable!(),
             },
-            x: self.rng.next_u64() as u32 % self.world.width,
-            y: self.rng.next_u64() as u32 % self.world.height,
+            x: self.rng.next_u64() as usize % self.world.width,
+            y: self.rng.next_u64() as usize % self.world.height,
         }));
 
         Ok(client.id())

@@ -61,20 +61,20 @@ pub struct WorldCell {
 /// The world state.
 pub struct World {
     /// The width of the world.
-    pub width: u32,
+    pub width: usize,
     /// The height of the world.
-    pub height: u32,
+    pub height: usize,
     /// The contents of the world
     pub _cells: Vec<WorldCell>,
 }
 
 impl World {
     /// Creates a new [`World`] with the specified dimensions.
-    pub fn new(width: u32, height: u32) -> Self {
+    pub fn new(width: usize, height: usize) -> Self {
         Self {
             width,
             height,
-            _cells: vec![WorldCell::default(); (width * height) as usize],
+            _cells: vec![WorldCell::default(); width * height],
         }
     }
 }
