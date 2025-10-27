@@ -1,7 +1,7 @@
 use alloc::collections::VecDeque;
 
-use super::task_list::{TaskId, TaskList};
 use super::Task;
+use super::task_list::{TaskId, TaskList};
 
 /// The part of the [`Executor`] that is responsible for storing up tasks and keeping
 /// track of which ones are ready to be polled.
