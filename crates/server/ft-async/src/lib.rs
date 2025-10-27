@@ -7,6 +7,6 @@
 extern crate alloc;
 
 mod executor;
-pub use executor::{Executor, EXECUTOR};
+pub use executor::{EXECUTOR, Executor};
 
 pub mod futures;

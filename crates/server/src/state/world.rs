@@ -1,3 +1,5 @@
+use crate::Vec;
+
 /// The class of an object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ObjectClass {
@@ -33,17 +35,43 @@ impl ObjectClass {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct WorldCell {
+    /// Food.
+    pub food: u32,
+    /// Linemate.
+    pub linemate: u32,
+    /// Deraumere.
+    pub deraumere: u32,
+    /// Sibur.
+    pub sibur: u32,
+    /// Mendiane.
+    pub mendiane: u32,
+    /// Phiras.
+    pub phiras: u32,
+    /// Thystame.
+    pub thystame: u32,
+    /// Player count.
+    pub player_count: u32,
+}
+
 /// The world state.
 pub struct World {
     /// The width of the world.
     pub width: u32,
     /// The height of the world.
     pub height: u32,
+    /// The contents of the world
+    pub _cells: Vec<WorldCell>,
 }
 
 impl World {
     /// Creates a new [`World`] with the specified dimensions.
     pub fn new(width: u32, height: u32) -> Self {
-        Self { width, height }
+        Self {
+            width,
+            height,
+            _cells: Vec::new(),
+        }
     }
 }
