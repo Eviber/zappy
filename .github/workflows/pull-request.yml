@@ -15,8 +15,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - name: Format
-        run: cargo fmt --verbose --check
+      - name: Format (server)
+        run: cargo fmt --manifest-path crates/server/Cargo.toml --verbose --check
+      - name: Format (client)
+        run: cargo fmt --manifest-path crates/client/Cargo.toml --verbose --check
+      - name: Format (gfx)
+        run: cargo fmt --manifest-path crates/gfx/Cargo.toml --verbose --check
       - name: Clippy (client)
         run: cargo clippy --verbose
       - name: Clippy (server)
