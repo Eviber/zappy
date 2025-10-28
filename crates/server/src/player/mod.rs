@@ -71,34 +71,35 @@ pub async fn handle(mut client: Client, team_id: TeamId) -> Result<(), ClientErr
     let _guard = PlayerGuard(player_id);
 
     {
+        // Finish the handshake.
+
         let lock = state();
         let available_slots = lock.available_slots_for(team_id);
         let width = lock.world.width;
         let height = lock.world.height;
-        drop(lock);
 
         client
             .fd()
             .async_write_all(format!("{available_slots}\n{width} {height}\n").as_bytes())
             .await?;
-    }
 
-    // Notify all monitors that a new player just joined.
-    {
+        // Notify all monitors that a new player just joined.
         // TODO: Determine whether the player is spawning via egg?
 
-        let lock = state();
         let player = &lock.players[player_id];
-        let buf = format!(
-            "pnw {} {} {} {} {} {}\n",
-            player_id,
-            player.x,
-            player.y,
-            player.facing,
-            player.level,
-            lock.teams[player.team_id()].name,
-        );
-        lock.broadcast_to_graphics_monitors(buf.as_bytes()).await;
+        lock.broadcast_to_graphics_monitors(
+            format!(
+                "pnw {} {} {} {} {} {}\n",
+                player_id,
+                player.x,
+                player.y,
+                player.facing,
+                player.level,
+                lock.teams[player.team_id()].name,
+            )
+            .as_bytes(),
+        )
+        .await;
     }
 
     loop {
