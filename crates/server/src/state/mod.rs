@@ -439,8 +439,9 @@ impl State {
             }
             Command::Inventory => Response::Inventory(player.inventory),
             Command::PickUpObject(object) => {
-                if self.world.cells[player.x + player.y * self.world.width].count(object) > 0 {
-                    self.world.cells[player.x + player.y * self.world.width].remove_one(object);
+                let cell_index = player.x + player.y * self.world.width;
+                if self.world.cells[cell_index].count(object) > 0 {
+                    self.world.cells[cell_index].remove_one(object);
                     player.inventory.add_one(object);
                     Response::Ok
                 } else {
@@ -448,8 +449,9 @@ impl State {
                 }
             }
             Command::DropObject(object) => {
+                let cell_index = player.x + player.y * self.world.width;
                 if player.inventory.count(object) > 0 {
-                    self.world.cells[player.x + player.y * self.world.width].add_one(object);
+                    self.world.cells[cell_index].add_one(object);
                     player.inventory.remove_one(object);
                     Response::Ok
                 } else {
