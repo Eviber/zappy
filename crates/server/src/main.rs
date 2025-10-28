@@ -19,7 +19,6 @@ use self::state::{State, set_state, state};
 
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering::Relaxed;
-use core::time::Duration;
 
 mod args;
 mod client;
@@ -73,7 +72,7 @@ fn main(args: &[&ft::CharStar], _env: &[&ft::CharStar]) -> u8 {
 
     ft_log::trace!("spawning tasks...");
     ft_async::EXECUTOR.spawn(run_server(args.port));
-    ft_async::EXECUTOR.spawn(run_ticks(args.tick_frequency));
+    ft_async::EXECUTOR.spawn(run_ticks());
 
     ft_log::trace!("running the executor...");
     loop {
@@ -187,21 +186,20 @@ async fn try_handle_connection(mut client: Client) -> Result<(), ClientError> {
 }
 
 /// Runs ticks on all the clients.
-async fn run_ticks(freq: f32) {
-    if let Err(err) = try_run_ticks(freq).await {
+async fn run_ticks() {
+    if let Err(err) = try_run_ticks().await {
         ft_log::error!("failed to run ticks: {err}");
     }
 }
 
 /// See [`run_ticks`].
-async fn try_run_ticks(freq: f32) -> ft::Result<()> {
-    let period = Duration::from_secs_f32(1.0 / freq);
+async fn try_run_ticks() -> ft::Result<()> {
     let mut next_tick = ft::Clock::MONOTONIC.get();
 
     loop {
         // Wait until the next tick.
         ft_async::futures::sleep(next_tick).await;
-        next_tick += period;
+        next_tick += state().tick_duration;
 
         // Notify the state.
         state().tick().await;

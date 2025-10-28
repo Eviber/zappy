@@ -33,6 +33,9 @@ pub struct PlayerState {
     pub x: u32,
     /// Current position of the player on the vertical axis.
     pub y: u32,
+
+    /// The current level of the player.
+    pub level: u32,
 }
 
 impl PlayerState {
@@ -66,6 +69,7 @@ impl PlayerState {
             },
             x: rng.next_u64() as u32 % width,
             y: rng.next_u64() as u32 % height,
+            level: 0,
         }
     }
 

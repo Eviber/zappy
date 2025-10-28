@@ -1,7 +1,7 @@
 use {
     crate::{client::ClientError, player::PlayerId, state::state},
     alloc::string::String,
-    core::{fmt::Write, str::FromStr},
+    core::{fmt::Write, str::FromStr, time::Duration},
 };
 
 /// Handles a single command received from the client.
@@ -111,6 +111,7 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
                     );
                 }
             }
+            drop(st);
 
             ft_async::futures::write_all(fd, buffer.as_bytes()).await?;
             Ok(())
@@ -168,7 +169,7 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
                 "ppo {} {} {} {}",
                 player_id, player.x, player.y, player.facing,
             );
-            ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+            fd.async_write_all(buffer.as_ref()).await?;
 
             Ok(())
         }
@@ -183,27 +184,27 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
                 Some(id) => id,
                 None => {
                     _ = writeln!(buffer, "error: can't parse player id");
-                    ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+                    fd.async_write_all(buffer.as_ref()).await?;
                     return Ok(());
                 }
             };
             if tokens.next().is_some() {
                 _ = writeln!(buffer, "error: too many arguments");
-                ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+                fd.async_write_all(buffer.as_ref()).await?;
                 return Ok(());
             }
 
             let st = state();
             let Some(_player) = st.players.get(player_id) else {
                 _ = writeln!(buffer, "error: player not found");
-                ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+                fd.async_write_all(buffer.as_ref()).await?;
                 return Ok(());
             };
 
             // TODO: Send the actual level of the player once it is stored in the
             // global state.
             _ = writeln!(buffer, "plv {} {}", player_id, 1);
-            ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+            fd.async_write_all(buffer.as_ref()).await?;
             Ok(())
         }
 
@@ -217,20 +218,20 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
                 Some(id) => id,
                 None => {
                     _ = writeln!(buffer, "error: can't parse player id");
-                    ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+                    fd.async_write_all(buffer.as_ref()).await?;
                     return Ok(());
                 }
             };
             if tokens.next().is_some() {
                 _ = writeln!(buffer, "error: too many arguments");
-                ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+                fd.async_write_all(buffer.as_ref()).await?;
                 return Ok(());
             }
 
             let st = state();
             let Some(_player) = st.players.get(player_id) else {
                 _ = writeln!(buffer, "error: player not found");
-                ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+                fd.async_write_all(buffer.as_ref()).await?;
                 return Ok(());
             };
 
@@ -241,7 +242,7 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
                 "pin {} {} {} {} {} {} {} {}",
                 player_id, 1, 1, 1, 1, 1, 1, 1,
             );
-            ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+            fd.async_write_all(buffer.as_ref()).await?;
             Ok(())
         }
 
@@ -253,14 +254,14 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
         b"sgt" => {
             if tokens.next().is_some() {
                 _ = writeln!(buffer, "error: too many arguments");
-                ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+                fd.async_write_all(buffer.as_ref()).await?;
                 return Ok(());
             }
 
             // TODO: Implement time unit retrieval from the global state once it is
             // implemented.
-            _ = writeln!(buffer, "sgt {}", 1);
-            ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+            _ = writeln!(buffer, "sgt {}", state().tick_duration.as_secs_f32());
+            fd.async_write_all(buffer.as_ref()).await?;
 
             Ok(())
         }
@@ -271,28 +272,31 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
         //
         // Modifies the current time unit.
         b"sst" => {
-            let Some(_new_time_unit) = parse_token::<u32>(tokens.next()) else {
+            let Some(new_time_unit) = parse_token::<f32>(tokens.next()) else {
                 _ = writeln!(buffer, "error: invalid time unit");
-                ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+                fd.async_write_all(buffer.as_ref()).await?;
                 return Ok(());
             };
             if tokens.next().is_some() {
                 _ = writeln!(buffer, "error: too many arguments");
-                ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+                fd.async_write_all(buffer.as_ref()).await?;
                 return Ok(());
             }
 
-            // TODO: Implement time unit modification from the global state once it is
-            // implemented.
-            _ = writeln!(buffer, "sgt {}", 1);
-            ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+            {
+                let mut st = state();
+                st.tick_duration = Duration::from_secs_f32(new_time_unit);
+                _ = writeln!(buffer, "sgt {}", st.tick_duration.as_secs_f32());
+            }
+
+            fd.async_write_all(buffer.as_ref()).await?;
 
             Ok(())
         }
 
         _ => {
             _ = writeln!(buffer, "error: unknown command");
-            ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+            fd.async_write_all(buffer.as_ref()).await?;
             Ok(())
         }
     }

@@ -1,12 +1,12 @@
 //! Defines the global state of the server.
 
-use alloc::vec::Vec;
 use {crate::player::PlayerState, core::fmt::Write};
 use {
     crate::{player::PlayerId, rng::Rng},
     slotmap::SlotMap,
 };
 use {alloc::boxed::Box, core::fmt::Display};
+use {alloc::vec::Vec, core::time::Duration};
 
 use crate::args::Args;
 use crate::client::Client;
@@ -88,6 +88,8 @@ pub struct State {
     pub rng: Rng,
     /// The list of graphics monitors that have subscribed to the server.
     pub gfx_monitors: Vec<ft::Fd>,
+    /// The duration between each tick of the world.
+    pub tick_duration: Duration,
 }
 
 impl State {
@@ -110,6 +112,7 @@ impl State {
             world,
             rng: Rng::from_urandom().unwrap_or(Rng::new(0xdeadbeef)),
             gfx_monitors: Vec::new(),
+            tick_duration: Duration::from_secs_f32(1.0 / args.tick_frequency),
         }
     }
 
