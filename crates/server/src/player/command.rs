@@ -1,5 +1,5 @@
 use {
-    super::PlayerId,
+    super::{PlayerError, PlayerId},
     crate::state::{ObjectClass, State},
     alloc::{boxed::Box, string::String},
     core::fmt::Write,
@@ -50,6 +50,35 @@ impl Command {
             Command::Evolve => 300,
             Command::LayAnEgg => 42,
             Command::AvailableTeamSlots => 0,
+        }
+    }
+
+    /// Parses the provided byte string.
+    pub fn parse(command: &[u8]) -> Result<Command, PlayerError> {
+        let (cmd_name, args) = slice_split_once(command, b' ').unwrap_or((command, b""));
+
+        match cmd_name {
+            b"avance" => Ok(Self::MoveForward),
+            b"droite" => Ok(Self::TurnRight),
+            b"gauche" => Ok(Self::TurnLeft),
+            b"voir" => Ok(Self::LookAround),
+            b"inventaire" => Ok(Self::Inventory),
+            b"prend" => {
+                let object = ObjectClass::from_arg(args)
+                    .ok_or_else(|| PlayerError::UnknownObjectClass(args.into()))?;
+                Ok(Self::PickUpObject(object))
+            }
+            b"pose" => {
+                let object = ObjectClass::from_arg(args)
+                    .ok_or_else(|| PlayerError::UnknownObjectClass(args.into()))?;
+                Ok(Self::DropObject(object))
+            }
+            b"expulse" => Ok(Self::KnockPlayer),
+            b"broadcast" => Ok(Self::Broadcast(args.into())),
+            b"incantation" => Ok(Self::Evolve),
+            b"fork" => Ok(Self::LayAnEgg),
+            b"connect_nbr" => Ok(Self::AvailableTeamSlots),
+            _ => Err(PlayerError::UnknownCommand(cmd_name.into())),
         }
     }
 
@@ -106,4 +135,12 @@ impl Response {
 
         Ok(())
     }
+}
+
+/// Splits the provided slice into two parts at the first occurrence of the provided delimiter.
+fn slice_split_once(slice: &[u8], delim: u8) -> Option<(&[u8], &[u8])> {
+    slice
+        .iter()
+        .position(|&b| b == delim)
+        .map(|pos| (&slice[..pos], &slice[pos + 1..]))
 }
