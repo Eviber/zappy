@@ -1,4 +1,8 @@
-use alloc::format;
+use {
+    alloc::format,
+    core::{fmt::Display, str::FromStr},
+    slotmap::new_key_type,
+};
 
 use crate::client::{Client, ClientError};
 use crate::state::{ObjectClass, TeamId, state};
@@ -12,8 +16,43 @@ pub use self::state::*;
 mod error;
 pub use self::error::*;
 
-/// The ID of a player.
-pub type PlayerId = usize;
+new_key_type! {
+    /// The ID of a player.
+    pub struct PlayerId;
+}
+
+impl PlayerId {
+    /// Turns this player ID into a u64.
+    #[inline]
+    pub fn to_u64(self) -> u64 {
+        self.0.as_ffi()
+    }
+
+    /// Converts the provided u64 to a player ID.
+    #[inline]
+    pub fn from_u64(id: u64) -> Self {
+        Self(slotmap::KeyData::from_ffi(id))
+    }
+}
+
+impl FromStr for PlayerId {
+    type Err = core::num::ParseIntError;
+
+    #[allow(clippy::unwrap_used, reason = "we know z cannot be parsed as a u64")]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if !s.starts_with("#") {
+            Err("z".parse::<u64>().unwrap_err())
+        } else {
+            s[1..].parse::<u64>().map(Self::from_u64)
+        }
+    }
+}
+
+impl Display for PlayerId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "#{}", self.to_u64())
+    }
+}
 
 /// A guard that makes a player leave their team when dropped.
 struct PlayerGuard(PlayerId);
@@ -61,7 +100,7 @@ pub async fn handle(mut client: Client, team_id: TeamId) -> Result<(), ClientErr
             _ => return Err(PlayerError::UnknownCommand(cmd_name.into()).into()),
         };
 
-        state().player_mut(player_id).schedule_command(cmd);
+        state().players[player_id].schedule_command(cmd);
     }
 }
 

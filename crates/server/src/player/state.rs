@@ -1,5 +1,5 @@
 use {
-    super::{Command, PlayerId},
+    super::Command,
     crate::{
         client::Client,
         rng::Rng,
@@ -19,11 +19,6 @@ struct ScheduledCommand {
 
 /// Defines the state that is kept per-player.
 pub struct PlayerState {
-    /// The ID of the player.
-    ///
-    /// This is a unique identifier that is assigned to each player when they connect to the
-    /// server.
-    player_id: PlayerId,
     /// The ID of the team the player is in.
     team_id: TeamId,
     /// The commands that have been buffered for the player.
@@ -59,7 +54,6 @@ impl PlayerState {
         height: u32,
     ) -> Self {
         Self {
-            player_id: client.id(),
             team_id,
             commands: ArrayVec::new(),
             conn: client.fd(),
@@ -73,12 +67,6 @@ impl PlayerState {
             x: rng.next_u64() as u32 % width,
             y: rng.next_u64() as u32 % height,
         }
-    }
-
-    /// Returns the ID of the player.
-    #[inline]
-    pub fn id(&self) -> PlayerId {
-        self.player_id
     }
 
     /// Returns the ID of the team the player is in.

@@ -3,6 +3,7 @@
 use {
     crate::{
         client::{Client, ClientError},
+        player::PlayerId,
         state::state,
     },
     alloc::string::String,
@@ -147,30 +148,30 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
         //
         // Returns the position and orientation of a particular player.
         b"ppo" => {
-            let player_id = match parse_token::<usize>(tokens.next()) {
+            let player_id = match parse_token::<PlayerId>(tokens.next()) {
                 Some(id) => id,
                 None => {
                     _ = writeln!(buffer, "error: can't parse player id");
-                    ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+                    fd.async_write_all(buffer.as_ref()).await?;
                     return Ok(());
                 }
             };
             if tokens.next().is_some() {
                 _ = writeln!(buffer, "error: too many arguments");
-                ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+                fd.async_write_all(buffer.as_ref()).await?;
                 return Ok(());
             }
 
             let st = state();
-            let Some(player) = st.get_player(player_id) else {
+            let Some(player) = st.players.get(player_id) else {
                 _ = writeln!(buffer, "error: player not found");
-                ft_async::futures::write_all(fd, buffer.as_ref()).await?;
+                fd.async_write_all(buffer.as_ref()).await?;
                 return Ok(());
             };
 
             _ = writeln!(
                 buffer,
-                "ppo #{} {} {} {}",
+                "ppo {} {} {} {}",
                 player_id, player.x, player.y, player.facing,
             );
             ft_async::futures::write_all(fd, buffer.as_ref()).await?;
@@ -184,7 +185,7 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
         //
         // Returns the level of a particular player.
         b"plv" => {
-            let player_id = match parse_token::<usize>(tokens.next()) {
+            let player_id = match parse_token::<PlayerId>(tokens.next()) {
                 Some(id) => id,
                 None => {
                     _ = writeln!(buffer, "error: can't parse player id");
@@ -199,7 +200,7 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
             }
 
             let st = state();
-            let Some(_player) = st.get_player(player_id) else {
+            let Some(_player) = st.players.get(player_id) else {
                 _ = writeln!(buffer, "error: player not found");
                 ft_async::futures::write_all(fd, buffer.as_ref()).await?;
                 return Ok(());
@@ -207,7 +208,7 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
 
             // TODO: Send the actual level of the player once it is stored in the
             // global state.
-            _ = writeln!(buffer, "plv #{} {}", player_id, 1);
+            _ = writeln!(buffer, "plv {} {}", player_id, 1);
             ft_async::futures::write_all(fd, buffer.as_ref()).await?;
             Ok(())
         }
@@ -218,7 +219,7 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
         //
         // Returns the inventory of a particular player.
         b"pin" => {
-            let player_id = match parse_token::<usize>(tokens.next()) {
+            let player_id = match parse_token::<PlayerId>(tokens.next()) {
                 Some(id) => id,
                 None => {
                     _ = writeln!(buffer, "error: can't parse player id");
@@ -233,7 +234,7 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
             }
 
             let st = state();
-            let Some(_player) = st.get_player(player_id) else {
+            let Some(_player) = st.players.get(player_id) else {
                 _ = writeln!(buffer, "error: player not found");
                 ft_async::futures::write_all(fd, buffer.as_ref()).await?;
                 return Ok(());
@@ -243,7 +244,7 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
             // global state.
             _ = writeln!(
                 buffer,
-                "pin #{} {} {} {} {} {} {} {}",
+                "pin {} {} {} {} {} {} {} {}",
                 player_id, 1, 1, 1, 1, 1, 1, 1,
             );
             ft_async::futures::write_all(fd, buffer.as_ref()).await?;

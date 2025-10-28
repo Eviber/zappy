@@ -1,13 +1,10 @@
 //! Defines the global state of the server.
 
-use crate::{
-    player::{Command, PlayerId},
-    rng::Rng,
-};
 use alloc::vec::Vec;
+use {crate::player::PlayerState, core::fmt::Write};
 use {
-    crate::player::{PlayerState, Response},
-    core::fmt::Write,
+    crate::{player::PlayerId, rng::Rng},
+    slotmap::SlotMap,
 };
 use {alloc::boxed::Box, core::fmt::Display};
 
@@ -80,12 +77,11 @@ impl Display for PlayerDirection {
 }
 
 /// The global state of the server, responsible for managing the clients and the game.
-#[allow(clippy::vec_box)] // `PlayerState` is a huge struct, copying it around is not a good idea.
 pub struct State {
     /// Information about the teams available in the current game.
     pub teams: Box<[Team]>,
     /// The list of players currently connected to the server.
-    pub players: Vec<Box<PlayerState>>,
+    pub players: SlotMap<PlayerId, PlayerState>,
     /// The current state of the world.
     pub world: World,
     /// The random number generator used by the server.
@@ -108,7 +104,7 @@ impl State {
 
         Self {
             teams,
-            players: Vec::new(),
+            players: SlotMap::default(),
             world,
             rng: Rng::from_urandom().unwrap_or(Rng::new(0xdeadbeef)),
         }
@@ -143,69 +139,28 @@ impl State {
 
         team.available_slots -= 1;
 
-        self.players.push(
-            PlayerState::new_random(
-                client,
-                team_id,
-                &mut self.rng,
-                self.world.width,
-                self.world.height,
-            )
-            .into(),
-        );
+        let player_id = self.players.insert(PlayerState::new_random(
+            client,
+            team_id,
+            &mut self.rng,
+            self.world.width,
+            self.world.height,
+        ));
 
-        Ok(client.id())
-    }
-
-    /// Returns the index of a player in the list of players.
-    #[inline]
-    fn player_index_by_id(&self, player: PlayerId) -> Option<usize> {
-        self.players.iter().position(|p| p.id() == player)
-    }
-
-    /// Returns the state of the player with the provided ID.
-    ///
-    /// # Panics
-    ///
-    /// This function panics if the player does not exist.
-    pub fn player_mut(&mut self, player_id: PlayerId) -> &mut PlayerState {
-        self.get_player_mut(player_id)
-            .expect("no player with the provided ID")
-    }
-
-    /// Returns the state of the player with the provided ID.
-    ///
-    /// # Panics
-    ///
-    /// This function panics if the player does not exist.
-    pub fn player(&self, player_id: PlayerId) -> &PlayerState {
-        self.get_player(player_id)
-            .expect("no player with the provided ID")
-    }
-
-    /// Returns the state of the player with the provided ID, or `None` if the player
-    /// does not exist.
-    pub fn get_player(&self, player_id: PlayerId) -> Option<&PlayerState> {
-        self.player_index_by_id(player_id)
-            .and_then(|i| self.players.get(i).map(|x| &**x))
-    }
-
-    /// Returns the state of the player with the provided ID, or `None` if the player
-    /// does not exist.
-    pub fn get_player_mut(&mut self, player_id: PlayerId) -> Option<&mut PlayerState> {
-        self.player_index_by_id(player_id)
-            .and_then(|i| self.players.get_mut(i).map(|x| &mut **x))
+        Ok(player_id)
     }
 
     /// Removes a player from the server.
-    pub fn leave(&mut self, player: PlayerId) {
-        let index = self
+    ///
+    /// # Panics
+    ///
+    /// This function panics if the player does not exist.
+    #[track_caller]
+    pub fn leave(&mut self, player_id: PlayerId) {
+        let player = self
             .players
-            .iter()
-            .position(|p| p.id() == player)
-            .expect("no player with the provided ID found");
-
-        let player = self.players.remove(index);
+            .remove(player_id)
+            .expect("Attempted to remove non-existent player");
         self.teams[player.team_id()].available_slots += 1;
     }
 
@@ -215,47 +170,26 @@ impl State {
         self.teams[team].available_slots
     }
 
-    /// Executes a command, returning a response.
-    pub fn execute_command(&mut self, command: Command, player: usize) -> Response {
-        let player = &mut self.players[player];
-
-        match command {
-            Command::TurnLeft => {
-                player.turn_left();
-                Response::Ok
-            }
-            Command::TurnRight => {
-                player.turn_right();
-                Response::Ok
-            }
-            Command::MoveForward => {
-                player.advance_position(self.world.width, self.world.height);
-                Response::Ok
-            }
-            _ => Response::Ok,
-        }
-    }
-
     /// Notifies the state that a whole tick has passed.
     ///
     /// # Arguments
     ///
     /// - `responses` - a list of responses that must be sent to their associated file
     ///   descriptiors.
-    pub fn tick(&mut self, responses: &mut Vec<(ft::Fd, Response)>) {
-        for player_index in 0..self.players.len() {
-            let player = &mut self.players[player_index];
-            let Some(cmd) = player.try_unqueue_command() else {
+    pub async fn tick(&mut self) {
+        let player_ids: Vec<PlayerId> = self.players.keys().collect();
+
+        for id in player_ids {
+            let Some(cmd) = self.players[id].try_unqueue_command() else {
                 continue;
             };
 
             // Execute the command.
-            ft_log::trace!("executing command for #{}: {:?}", player.id(), cmd);
+            ft_log::trace!("executing command for {}: {:?}", id, cmd);
 
-            let player_conn = player.conn;
-
-            let response = self.execute_command(cmd, player_index);
-            responses.push((player_conn, response));
+            if let Err(err) = cmd.execute(id, self).await {
+                ft_log::error!("failed to execute command for player {}: {}", id, err);
+            }
         }
     }
 }

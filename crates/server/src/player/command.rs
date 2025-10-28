@@ -1,5 +1,6 @@
 use {
-    crate::state::ObjectClass,
+    super::PlayerId,
+    crate::state::{ObjectClass, State},
     alloc::{boxed::Box, string::String},
     core::fmt::Write,
 };
@@ -50,6 +51,34 @@ impl Command {
             Command::LayAnEgg => 42,
             Command::AvailableTeamSlots => 0,
         }
+    }
+
+    /// Executes the player command on the provided player.
+    pub async fn execute(self, player_id: PlayerId, state: &mut State) -> ft::Result<()> {
+        let player = &mut state.players[player_id];
+
+        match self {
+            Command::TurnLeft => {
+                player.turn_left();
+                player.conn.async_write_all(b"ok\n").await?;
+            }
+            Command::TurnRight => {
+                player.turn_right();
+                player.conn.async_write_all(b"ok\n").await?;
+            }
+            Command::MoveForward => {
+                player.advance_position(state.world.width, state.world.height);
+                player.conn.async_write_all(b"ok\n").await?;
+            }
+            _ => {
+                player
+                    .conn
+                    .async_write_all(b"error: not implemented yet\n")
+                    .await?;
+            }
+        }
+
+        Ok(())
     }
 }
 

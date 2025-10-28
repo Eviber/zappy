@@ -9,7 +9,6 @@
 
 extern crate alloc;
 
-use alloc::string::String;
 use alloc::vec::Vec;
 
 use self::args::Args;
@@ -199,27 +198,12 @@ async fn try_run_ticks(freq: f32) -> ft::Result<()> {
     let period = Duration::from_secs_f32(1.0 / freq);
     let mut next_tick = ft::Clock::MONOTONIC.get();
 
-    let mut responses = Vec::new();
-    let mut send_buf = String::new();
-
     loop {
         // Wait until the next tick.
         ft_async::futures::sleep(next_tick).await;
         next_tick += period;
 
         // Notify the state.
-        responses.clear();
-        state().tick(&mut responses);
-
-        // Send the responses to the clients.
-        // TODO: optimize this by sending the responses concurrently.
-        // There's two ways to do this:
-        //  1. Create a proper future that sends all the responses concurrently.
-        //  2. Spawn a task per message, but that leaves no good way to re-use buffers.
-        //     This might not be a big problem though.
-        for (conn, response) in responses.iter() {
-            send_buf.clear();
-            response.send_to(*conn, &mut send_buf).await?;
-        }
+        state().tick().await;
     }
 }
