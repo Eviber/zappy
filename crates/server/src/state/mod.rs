@@ -86,6 +86,8 @@ pub struct State {
     pub world: World,
     /// The random number generator used by the server.
     pub rng: Rng,
+    /// The list of graphics monitors that have subscribed to the server.
+    pub gfx_monitors: Vec<ft::Fd>,
 }
 
 impl State {
@@ -107,6 +109,7 @@ impl State {
             players: SlotMap::default(),
             world,
             rng: Rng::from_urandom().unwrap_or(Rng::new(0xdeadbeef)),
+            gfx_monitors: Vec::new(),
         }
     }
 
@@ -190,6 +193,19 @@ impl State {
             if let Err(err) = cmd.execute(id, self).await {
                 ft_log::error!("failed to execute command for player {}: {}", id, err);
             }
+        }
+    }
+
+    /// Broadcasts a message to all registered graphics monitors.
+    pub async fn broadcast_to_graphics_monitors(&self, data: &[u8]) {
+        for monitor_fd in &self.gfx_monitors {
+            if let Err(err) = monitor_fd.async_write_all(data).await {
+                ft_log::error!(
+                    "failed to broadcast to graphics monitor {}: {}",
+                    monitor_fd.to_raw(),
+                    err
+                );
+            };
         }
     }
 }
