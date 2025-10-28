@@ -15,7 +15,7 @@ impl Rng {
     pub fn from_urandom() -> Option<Self> {
         let fd = ft::File::open(ft::charstar!("/dev/urandom")).ok()?;
         let mut seed: MaybeUninit<u64> = MaybeUninit::uninit();
-        fd.read(&mut seed.as_bytes_mut()).ok()?;
+        fd.read(seed.as_bytes_mut()).ok()?;
         Some(Self::new(unsafe { seed.assume_init() }))
     }
 

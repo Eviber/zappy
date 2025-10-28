@@ -1,9 +1,9 @@
 //! Defines the global state of the server.
 
-use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::Write;
+use {alloc::boxed::Box, core::fmt::Display};
 
 use ft::collections::ArrayVec;
 
@@ -108,13 +108,16 @@ pub struct ScheduledCommand {
 /// Information about the state of a team.
 pub struct Team {
     /// The name of the team.
-    name: Box<str>,
+    pub name: Box<str>,
     /// The number of available slots in the team.
-    available_slots: u32,
+    pub available_slots: u32,
 }
 
 /// The ID of a player.
 pub type PlayerId = usize;
+
+/// The ID of a monitor.
+pub type MonitorId = usize;
 
 /// A direction in which the player can be facing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -151,6 +154,17 @@ impl PlayerDirection {
     }
 }
 
+impl Display for PlayerDirection {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::North => f.write_char('1'),
+            Self::East => f.write_char('2'),
+            Self::South => f.write_char('3'),
+            Self::West => f.write_char('4'),
+        }
+    }
+}
+
 /// The state of a player.
 pub struct PlayerState {
     /// The ID of the player.
@@ -161,12 +175,13 @@ pub struct PlayerState {
     conn: ft::Fd,
     /// The commands that have been buffered for the player.
     commands: ArrayVec<ScheduledCommand, 10>,
-    /// A direction in which the player is facing.
-    facing: PlayerDirection,
+
+    /// The direction in which the player is facing.
+    pub facing: PlayerDirection,
     /// Current position of the player on the horizontal axis.
-    x: u32,
+    pub x: u32,
     /// Current position of the player on the vertical axis.
-    y: u32,
+    pub y: u32,
 }
 
 impl PlayerState {
@@ -301,10 +316,37 @@ impl State {
     }
 
     /// Returns the state of the player with the provided ID.
-    pub fn player_mut(&mut self, player: PlayerId) -> &mut PlayerState {
-        self.player_index_by_id(player)
-            .and_then(|i| self.players.get_mut(i))
+    ///
+    /// # Panics
+    ///
+    /// This function panics if the player does not exist.
+    pub fn player_mut(&mut self, player_id: PlayerId) -> &mut PlayerState {
+        self.get_player_mut(player_id)
             .expect("no player with the provided ID")
+    }
+
+    /// Returns the state of the player with the provided ID.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if the player does not exist.
+    pub fn player(&self, player_id: PlayerId) -> &PlayerState {
+        self.get_player(player_id)
+            .expect("no player with the provided ID")
+    }
+
+    /// Returns the state of the player with the provided ID, or `None` if the player
+    /// does not exist.
+    pub fn get_player(&self, player_id: PlayerId) -> Option<&PlayerState> {
+        self.player_index_by_id(player_id)
+            .and_then(|i| self.players.get(i).map(|x| &**x))
+    }
+
+    /// Returns the state of the player with the provided ID, or `None` if the player
+    /// does not exist.
+    pub fn get_player_mut(&mut self, player_id: PlayerId) -> Option<&mut PlayerState> {
+        self.player_index_by_id(player_id)
+            .and_then(|i| self.players.get_mut(i).map(|x| &mut **x))
     }
 
     /// Removes a player from the server.

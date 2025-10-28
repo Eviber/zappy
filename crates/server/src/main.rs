@@ -5,6 +5,7 @@
 #![feature(maybe_uninit_as_bytes)]
 #![deny(clippy::unwrap_used, unsafe_op_in_unsafe_fn)]
 #![warn(missing_docs, clippy::must_use_candidate)]
+#![allow(dead_code)] // FIXME: Remove this
 
 extern crate alloc;
 

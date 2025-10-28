@@ -65,7 +65,7 @@ pub struct World {
     /// The height of the world.
     pub height: u32,
     /// The contents of the world
-    pub _cells: Vec<WorldCell>,
+    pub cells: Vec<WorldCell>,
 }
 
 impl World {
@@ -74,7 +74,7 @@ impl World {
         Self {
             width,
             height,
-            _cells: vec![WorldCell::default(); (width * height) as usize],
+            cells: vec![WorldCell::default(); (width * height) as usize],
         }
     }
 }
