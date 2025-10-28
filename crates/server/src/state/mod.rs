@@ -74,8 +74,11 @@ impl Command {
 pub enum Response {
     /// The string `"ok"`.
     Ok,
+    /// The string `"ko"`.
+    Ko,
     /// The number of available slots in the team.
     ConnectNbr(u32),
+    Inventory(PlayerInventory),
 }
 
 impl Response {
@@ -83,10 +86,26 @@ impl Response {
     pub async fn send_to(&self, fd: ft::Fd, buf: &mut String) -> ft::Result<()> {
         match self {
             Response::Ok => ft_async::futures::write_all(fd, b"ok\n").await?,
+            Response::Ko => ft_async::futures::write_all(fd, b"ko\n").await?,
             Response::ConnectNbr(nbr) => {
                 // NOTE: This cannot fail because writing to a string in this way will panic in case
                 // of memory allocation failure instead of returning an error.
                 let result = writeln!(buf, "{}", nbr);
+                debug_assert!(result.is_ok(), "writing to a string should never fail");
+                ft_async::futures::write_all(fd, buf.as_bytes()).await?
+            }
+            Response::Inventory(inventory) => {
+                let result = writeln!(
+                    buf,
+                    "{{nourriture {}, linemate {}, deraumere {}, sibur {}, mendiane {}, phiras {}, thystame {}}}",
+                    inventory.get_food(),
+                    inventory.linemate,
+                    inventory.deraumere,
+                    inventory.sibur,
+                    inventory.mendiane,
+                    inventory.phiras,
+                    inventory.thystame,
+                );
                 debug_assert!(result.is_ok(), "writing to a string should never fail");
                 ft_async::futures::write_all(fd, buf.as_bytes()).await?
             }
@@ -151,6 +170,79 @@ impl PlayerDirection {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PlayerInventory {
+    /// Food.
+    time_to_live: u32,
+    /// Linemate.
+    linemate: u32,
+    /// Deraumere.
+    deraumere: u32,
+    /// Sibur.
+    sibur: u32,
+    /// Mendiane.
+    mendiane: u32,
+    /// Phiras.
+    phiras: u32,
+    /// Thystame.
+    thystame: u32,
+}
+
+impl PlayerInventory {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            time_to_live: 1260,
+            linemate: 0,
+            deraumere: 0,
+            sibur: 0,
+            mendiane: 0,
+            phiras: 0,
+            thystame: 0,
+        }
+    }
+
+    pub fn get_food(&self) -> u32 {
+        self.time_to_live / 126
+    }
+
+    fn count(&self, object: ObjectClass) -> u32 {
+        match object {
+            ObjectClass::Food => self.time_to_live / 126,
+            ObjectClass::Linemate => self.linemate,
+            ObjectClass::Deraumere => self.deraumere,
+            ObjectClass::Sibur => self.sibur,
+            ObjectClass::Mendiane => self.mendiane,
+            ObjectClass::Phiras => self.phiras,
+            ObjectClass::Thystame => self.thystame,
+        }
+    }
+
+    fn add_one(&mut self, object: ObjectClass) {
+        match object {
+            ObjectClass::Food => self.time_to_live += 126,
+            ObjectClass::Linemate => self.linemate += 1,
+            ObjectClass::Deraumere => self.deraumere += 1,
+            ObjectClass::Sibur => self.sibur += 1,
+            ObjectClass::Mendiane => self.mendiane += 1,
+            ObjectClass::Phiras => self.phiras += 1,
+            ObjectClass::Thystame => self.thystame += 1,
+        }
+    }
+
+    fn remove_one(&mut self, object: ObjectClass) {
+        match object {
+            ObjectClass::Food => self.time_to_live -= 126,
+            ObjectClass::Linemate => self.linemate -= 1,
+            ObjectClass::Deraumere => self.deraumere -= 1,
+            ObjectClass::Sibur => self.sibur -= 1,
+            ObjectClass::Mendiane => self.mendiane -= 1,
+            ObjectClass::Phiras => self.phiras -= 1,
+            ObjectClass::Thystame => self.thystame -= 1,
+        }
+    }
+}
+
 /// The state of a player.
 pub struct PlayerState {
     /// The ID of the player.
@@ -167,6 +259,8 @@ pub struct PlayerState {
     x: usize,
     /// Current position of the player on the vertical axis.
     y: usize,
+    /// Items currently hold by the player
+    inventory: PlayerInventory,
 }
 
 impl PlayerState {
@@ -289,6 +383,7 @@ impl State {
             },
             x: self.rng.next_u64() as usize % self.world.width,
             y: self.rng.next_u64() as usize % self.world.height,
+            inventory: PlayerInventory::new(),
         }));
 
         Ok(client.id())
@@ -341,6 +436,25 @@ impl State {
             Command::MoveForward => {
                 player.advance_position(self.world.width, self.world.height);
                 Response::Ok
+            }
+            Command::Inventory => Response::Inventory(player.inventory),
+            Command::PickUpObject(object) => {
+                if self.world.cells[player.x + player.y * self.world.width].count(object) > 0 {
+                    self.world.cells[player.x + player.y * self.world.width].remove_one(object);
+                    player.inventory.add_one(object);
+                    Response::Ok
+                } else {
+                    Response::Ko
+                }
+            }
+            Command::DropObject(object) => {
+                if player.inventory.count(object) > 0 {
+                    self.world.cells[player.x + player.y * self.world.width].add_one(object);
+                    player.inventory.remove_one(object);
+                    Response::Ok
+                } else {
+                    Response::Ko
+                }
             }
             _ => Response::Ok,
         }

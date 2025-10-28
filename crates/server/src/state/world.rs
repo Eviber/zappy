@@ -58,6 +58,44 @@ pub struct WorldCell {
     pub egg_count: u32,
 }
 
+impl WorldCell {
+    pub fn count(&self, object: ObjectClass) -> u32 {
+        match object {
+            ObjectClass::Food => self.food,
+            ObjectClass::Linemate => self.linemate,
+            ObjectClass::Deraumere => self.deraumere,
+            ObjectClass::Sibur => self.sibur,
+            ObjectClass::Mendiane => self.mendiane,
+            ObjectClass::Phiras => self.phiras,
+            ObjectClass::Thystame => self.thystame,
+        }
+    }
+
+    pub fn add_one(&mut self, object: ObjectClass) {
+        match object {
+            ObjectClass::Food => self.food += 1,
+            ObjectClass::Linemate => self.linemate += 1,
+            ObjectClass::Deraumere => self.deraumere += 1,
+            ObjectClass::Sibur => self.sibur += 1,
+            ObjectClass::Mendiane => self.mendiane += 1,
+            ObjectClass::Phiras => self.phiras += 1,
+            ObjectClass::Thystame => self.thystame += 1,
+        }
+    }
+
+    pub fn remove_one(&mut self, object: ObjectClass) {
+        match object {
+            ObjectClass::Food => self.food -= 1,
+            ObjectClass::Linemate => self.linemate -= 1,
+            ObjectClass::Deraumere => self.deraumere -= 1,
+            ObjectClass::Sibur => self.sibur -= 1,
+            ObjectClass::Mendiane => self.mendiane -= 1,
+            ObjectClass::Phiras => self.phiras -= 1,
+            ObjectClass::Thystame => self.thystame -= 1,
+        }
+    }
+}
+
 /// The world state.
 pub struct World {
     /// The width of the world.
@@ -65,7 +103,7 @@ pub struct World {
     /// The height of the world.
     pub height: usize,
     /// The contents of the world
-    pub _cells: Vec<WorldCell>,
+    pub cells: Vec<WorldCell>,
 }
 
 impl World {
@@ -74,7 +112,7 @@ impl World {
         Self {
             width,
             height,
-            _cells: vec![WorldCell::default(); width * height],
+            cells: vec![WorldCell::default(); width * height],
         }
     }
 }
