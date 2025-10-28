@@ -70,27 +70,40 @@ pub async fn handle(mut client: Client, team_id: TeamId) -> Result<(), ClientErr
     let player_id = state().try_join_team(&client, team_id)?;
     let _guard = PlayerGuard(player_id);
 
-    finish_handshake(&mut client, team_id).await?;
+    {
+        let lock = state();
+        let available_slots = lock.available_slots_for(team_id);
+        let width = lock.world.width;
+        let height = lock.world.height;
+        drop(lock);
+
+        client
+            .fd()
+            .async_write_all(format!("{available_slots}\n{width} {height}\n").as_bytes())
+            .await?;
+    }
+
+    // Notify all monitors that a new player just joined.
+    {
+        // TODO: Determine whether the player is spawning via egg?
+
+        let lock = state();
+        let player = &lock.players[player_id];
+        let buf = format!(
+            "pnw {} {} {} {} {} {}\n",
+            player_id,
+            player.x,
+            player.y,
+            player.facing,
+            player.level,
+            lock.teams[player.team_id()].name,
+        );
+        lock.broadcast_to_graphics_monitors(buf.as_bytes()).await;
+    }
 
     loop {
         let line = client.recv_line().await?;
         let cmd = Command::parse(line)?;
         state().players[player_id].schedule_command(cmd);
     }
-}
-
-/// Finish the handshake by sending:
-/// 1. The number of remaining slots in the team.
-/// 2. The dimensions of the world.
-async fn finish_handshake(client: &mut Client, team_id: TeamId) -> ft::Result<()> {
-    let lock = state();
-    let available_slots = lock.available_slots_for(team_id);
-    let width = lock.world.width;
-    let height = lock.world.height;
-    drop(lock);
-
-    client
-        .fd()
-        .async_write_all(format!("{available_slots}\n{width} {height}\n").as_bytes())
-        .await
 }
