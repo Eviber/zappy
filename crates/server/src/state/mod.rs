@@ -259,7 +259,7 @@ pub struct PlayerState {
     x: usize,
     /// Current position of the player on the vertical axis.
     y: usize,
-    /// Items currently hold by the player
+    /// Items currently held by the player
     inventory: PlayerInventory,
 }
 
