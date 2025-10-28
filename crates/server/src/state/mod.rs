@@ -1,109 +1,26 @@
 //! Defines the global state of the server.
 
-use alloc::string::String;
+use crate::{
+    player::{Command, PlayerId},
+    rng::Rng,
+};
 use alloc::vec::Vec;
-use core::fmt::Write;
+use {
+    crate::player::{PlayerState, Response},
+    core::fmt::Write,
+};
 use {alloc::boxed::Box, core::fmt::Display};
-
-use ft::collections::ArrayVec;
 
 use crate::args::Args;
 use crate::client::Client;
 use crate::player::PlayerError;
-use crate::state::rng::Rng;
 
-mod rng;
 mod world;
 
 pub use self::world::*;
 
 /// The ID of a team.
 pub type TeamId = usize;
-
-/// A command that a player may attempt to execute.
-#[derive(Debug)]
-#[allow(dead_code)] // FIXME: temporary until all commands are implemented
-pub enum Command {
-    /// The `avance` command.
-    MoveForward,
-    /// The `gauche` command.
-    TurnLeft,
-    /// The `droite` command.
-    TurnRight,
-    /// The `voir` command.
-    LookAround,
-    /// The `inventaire` command.
-    Inventory,
-    /// The `prend` command.
-    PickUpObject(ObjectClass),
-    /// The `pose` command.
-    DropObject(ObjectClass),
-    /// The `expulse` command.
-    KnockPlayer,
-    /// The `broadcast` command.
-    Broadcast(Box<[u8]>),
-    /// The `incantation` command.
-    Evolve,
-    /// The `fork` command.
-    LayAnEgg,
-    /// The `connect_nbr` command.
-    AvailableTeamSlots,
-}
-
-impl Command {
-    /// Returns the number of ticks that this command takes to execute.
-    pub fn ticks(&self) -> u32 {
-        match self {
-            Command::MoveForward => 7,
-            Command::TurnLeft => 7,
-            Command::TurnRight => 7,
-            Command::LookAround => 7,
-            Command::Inventory => 1,
-            Command::PickUpObject(_) => 7,
-            Command::DropObject(_) => 7,
-            Command::KnockPlayer => 7,
-            Command::Broadcast(_) => 7,
-            Command::Evolve => 300,
-            Command::LayAnEgg => 42,
-            Command::AvailableTeamSlots => 0,
-        }
-    }
-}
-
-/// A response that can be sent back to a player.
-pub enum Response {
-    /// The string `"ok"`.
-    Ok,
-    /// The number of available slots in the team.
-    ConnectNbr(u32),
-}
-
-impl Response {
-    /// Sends the response to the specified file descriptor.
-    pub async fn send_to(&self, fd: ft::Fd, buf: &mut String) -> ft::Result<()> {
-        match self {
-            Response::Ok => ft_async::futures::write_all(fd, b"ok\n").await?,
-            Response::ConnectNbr(nbr) => {
-                // NOTE: This cannot fail because writing to a string in this way will panic in case
-                // of memory allocation failure instead of returning an error.
-                let result = writeln!(buf, "{}", nbr);
-                debug_assert!(result.is_ok(), "writing to a string should never fail");
-                ft_async::futures::write_all(fd, buf.as_bytes()).await?
-            }
-        }
-
-        Ok(())
-    }
-}
-
-/// A command that has been scheduled to be executed in the future.
-#[derive(Debug)]
-pub struct ScheduledCommand {
-    /// The command that has been scheduled.
-    pub command: Command,
-    /// The number of ticks remaining before the command is executed.
-    pub remaining_ticks: u32,
-}
 
 /// Information about the state of a team.
 pub struct Team {
@@ -112,9 +29,6 @@ pub struct Team {
     /// The number of available slots in the team.
     pub available_slots: u32,
 }
-
-/// The ID of a player.
-pub type PlayerId = usize;
 
 /// The ID of a monitor.
 pub type MonitorId = usize;
@@ -161,67 +75,6 @@ impl Display for PlayerDirection {
             Self::East => f.write_char('2'),
             Self::South => f.write_char('3'),
             Self::West => f.write_char('4'),
-        }
-    }
-}
-
-/// The state of a player.
-pub struct PlayerState {
-    /// The ID of the player.
-    player_id: PlayerId,
-    /// The ID of the team the player is in.
-    team_id: TeamId,
-    /// The connection that was open with the player.
-    conn: ft::Fd,
-    /// The commands that have been buffered for the player.
-    commands: ArrayVec<ScheduledCommand, 10>,
-
-    /// The direction in which the player is facing.
-    pub facing: PlayerDirection,
-    /// Current position of the player on the horizontal axis.
-    pub x: u32,
-    /// Current position of the player on the vertical axis.
-    pub y: u32,
-}
-
-impl PlayerState {
-    /// Schedules a command for this player.
-    ///
-    /// # Returns
-    ///
-    /// `true` if the command has been scheduled, `false` if the buffer is full.
-    pub fn schedule_command(&mut self, command: Command) -> bool {
-        self.commands
-            .try_push(ScheduledCommand {
-                remaining_ticks: command.ticks(),
-                command,
-            })
-            .is_ok()
-    }
-
-    /// Turns the player right.
-    #[inline]
-    pub fn turn_right(&mut self) {
-        self.facing = self.facing.turn_right();
-    }
-
-    /// Turns the player left.
-    #[inline]
-    pub fn turn_left(&mut self) {
-        self.facing = self.facing.turn_left();
-    }
-
-    /// Advances the player's position based on their current direction.
-    pub fn advance_position(&mut self, width: u32, height: u32) {
-        match self.facing {
-            PlayerDirection::North if self.y == height - 1 => self.y = 0,
-            PlayerDirection::North => self.y += 1,
-            PlayerDirection::South if self.y == 0 => self.y = height - 1,
-            PlayerDirection::South => self.y -= 1,
-            PlayerDirection::West if self.x == 0 => self.x = width - 1,
-            PlayerDirection::West => self.x -= 1,
-            PlayerDirection::East if self.x == width - 1 => self.x = 0,
-            PlayerDirection::East => self.x += 1,
         }
     }
 }
@@ -290,21 +143,16 @@ impl State {
 
         team.available_slots -= 1;
 
-        self.players.push(Box::new(PlayerState {
-            player_id: client.id(),
-            team_id,
-            conn: client.fd(),
-            commands: ArrayVec::new(),
-            facing: match self.rng.next_u64() % 4 {
-                0 => PlayerDirection::North,
-                1 => PlayerDirection::East,
-                2 => PlayerDirection::South,
-                3 => PlayerDirection::West,
-                _ => unreachable!(),
-            },
-            x: self.rng.next_u64() as u32 % self.world.width,
-            y: self.rng.next_u64() as u32 % self.world.height,
-        }));
+        self.players.push(
+            PlayerState::new_random(
+                client,
+                team_id,
+                &mut self.rng,
+                self.world.width,
+                self.world.height,
+            )
+            .into(),
+        );
 
         Ok(client.id())
     }
@@ -312,7 +160,7 @@ impl State {
     /// Returns the index of a player in the list of players.
     #[inline]
     fn player_index_by_id(&self, player: PlayerId) -> Option<usize> {
-        self.players.iter().position(|p| p.player_id == player)
+        self.players.iter().position(|p| p.id() == player)
     }
 
     /// Returns the state of the player with the provided ID.
@@ -354,11 +202,11 @@ impl State {
         let index = self
             .players
             .iter()
-            .position(|p| p.player_id == player)
+            .position(|p| p.id() == player)
             .expect("no player with the provided ID found");
 
         let player = self.players.remove(index);
-        self.teams[player.team_id].available_slots += 1;
+        self.teams[player.team_id()].available_slots += 1;
     }
 
     /// Returns the number of available slots in the specified team.
@@ -394,37 +242,19 @@ impl State {
     ///
     /// - `responses` - a list of responses that must be sent to their associated file
     ///   descriptiors.
-    #[allow(clippy::unwrap_used)]
     pub fn tick(&mut self, responses: &mut Vec<(ft::Fd, Response)>) {
         for player_index in 0..self.players.len() {
             let player = &mut self.players[player_index];
-            let Some(command) = player.commands.first_mut() else {
+            let Some(cmd) = player.try_unqueue_command() else {
                 continue;
             };
 
-            if command.remaining_ticks > 0 {
-                command.remaining_ticks -= 1;
-                continue;
-            }
-
-            // This unwrap can't ever fail because the case where there is no
-            // first element is handled above.
-            // Also, we can't optimize this with a swap_remove because the
-            // order in which commands are inserted matters. Maybe we can use
-            // a VecDeque instead, but that would be vastly overkill for those
-            // 10 elements.
-            let cmd = player.commands.remove(0).unwrap();
-
             // Execute the command.
-            ft_log::trace!(
-                "executing command for #{}: {:?}",
-                player.player_id,
-                cmd.command,
-            );
+            ft_log::trace!("executing command for #{}: {:?}", player.id(), cmd);
 
             let player_conn = player.conn;
 
-            let response = self.execute_command(cmd.command, player_index);
+            let response = self.execute_command(cmd, player_index);
             responses.push((player_conn, response));
         }
     }

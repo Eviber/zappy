@@ -26,6 +26,7 @@ mod args;
 mod client;
 mod gfx_connection;
 mod player;
+mod rng;
 mod server;
 mod state;
 

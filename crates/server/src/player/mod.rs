@@ -1,11 +1,19 @@
 use alloc::format;
 
 use crate::client::{Client, ClientError};
-use crate::state::{Command, ObjectClass, PlayerId, TeamId, state};
+use crate::state::{ObjectClass, TeamId, state};
+
+mod command;
+pub use self::command::*;
+
+mod state;
+pub use self::state::*;
 
 mod error;
-
 pub use self::error::*;
+
+/// The ID of a player.
+pub type PlayerId = usize;
 
 /// A guard that makes a player leave their team when dropped.
 struct PlayerGuard(PlayerId);
