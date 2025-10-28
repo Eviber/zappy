@@ -82,7 +82,7 @@ pub async fn handle(mut client: Client) -> Result<(), ClientError> {
 
         drop(st);
 
-        client.send_raw(buf.as_bytes()).await?;
+        client.fd().async_write_all(buf.as_bytes()).await?;
     }
 
     // Start the command loop.

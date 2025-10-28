@@ -46,12 +46,6 @@ impl Client {
         *self.conn
     }
 
-    /// Sends the provided buffer to the client.
-    pub async fn send_raw(&mut self, buf: &[u8]) -> ft::Result<()> {
-        ft_async::futures::ready_for_writing(*self.conn).await;
-        ft_async::futures::write_all(*self.conn, buf).await
-    }
-
     /// Reads an entire line from the client, returning it.
     pub async fn recv_line(&mut self) -> ft::Result<&[u8]> {
         ft_async::futures::ready_for_reading(*self.conn).await;

@@ -169,7 +169,7 @@ async fn try_handle_connection(mut client: Client) -> Result<(), ClientError> {
     // The rest of the handshake depends on the type of client (player or graphical).
     //
 
-    client.send_raw(b"BIENVENUE\n").await?;
+    client.fd().async_write_all(b"BIENVENUE\n").await?;
     let team_name = client.recv_line().await?;
 
     if team_name == b"GRAPHIC" {

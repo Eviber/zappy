@@ -90,6 +90,7 @@ async fn finish_handshake(client: &mut Client, team_id: TeamId) -> ft::Result<()
     drop(lock);
 
     client
-        .send_raw(format!("{available_slots}\n{width} {height}\n").as_bytes())
+        .fd()
+        .async_write_all(format!("{available_slots}\n{width} {height}\n").as_bytes())
         .await
 }
