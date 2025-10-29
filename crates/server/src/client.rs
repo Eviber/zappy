@@ -1,21 +1,12 @@
 //! A simple client abstraction for the Zappy server.
 
-use core::sync::atomic::AtomicUsize;
-use core::sync::atomic::Ordering::Relaxed;
-
-use ft::collections::ReadBuffer;
-
-use crate::player::PlayerError;
+use {crate::player::PlayerError, ft::collections::ReadBuffer};
 
 /// Represents a client connected to the server.
 ///
 /// This type provides a simple abstraction over the TCP connection and allows sending
 /// messages to the client in the way defined by the subject.
 pub struct Client {
-    /// The unique identifier of the client.
-    ///
-    /// This is used for debugging purposes.
-    id: usize,
     /// The file descriptor of the client.
     conn: ft::File,
     /// The read buffer used to read data from the client.
@@ -25,19 +16,10 @@ pub struct Client {
 impl Client {
     /// Creates a new [`Client`] from the provided file descriptor.
     pub fn new(conn: ft::File) -> Self {
-        static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
-
         Self {
-            id: NEXT_ID.fetch_add(1, Relaxed),
             conn,
             read_buf: ReadBuffer::new(),
         }
-    }
-
-    /// Returns the ID of the client.
-    #[inline]
-    pub fn id(&self) -> usize {
-        self.id
     }
 
     /// Returns the file descriptor of the client.

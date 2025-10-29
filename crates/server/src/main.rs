@@ -135,27 +135,27 @@ async fn run_server(port: u16) {
 /// Handles a connection from a client.
 async fn handle_connection(conn: ft::File, addr: ft::net::SocketAddr) {
     let client = Client::new(conn);
-    let id = client.id();
+    let fd = client.fd();
 
-    ft_log::info!("accepted a connection from `{addr}` (#{id})");
+    ft_log::info!("accepted a connection from `{addr}` ({fd:?})");
 
     match try_handle_connection(client).await {
         Ok(()) => (),
         Err(ClientError::Disconnected) => {
-            ft_log::info!("client #{id} disconnected");
+            ft_log::info!("client {fd:?} disconnected");
         }
         Err(ClientError::Unexpected(err)) => {
-            ft_log::error!("failed to handle client #{id}: {err}");
+            ft_log::error!("failed to handle client {fd:?}: {err}");
         }
         Err(ClientError::Player(err)) => {
-            ft_log::info!("player #{id} behaved badly: {err}");
+            ft_log::info!("player {fd:?} behaved badly: {err}");
         }
     }
 }
 
 /// See [`handle_connection`].
 async fn try_handle_connection(mut client: Client) -> Result<(), ClientError> {
-    let id = client.id();
+    let conn = client.fd();
 
     //
     // HANDSHAKE
@@ -169,11 +169,11 @@ async fn try_handle_connection(mut client: Client) -> Result<(), ClientError> {
     // The rest of the handshake depends on the type of client (player or graphical).
     //
 
-    client.fd().async_write_all(b"BIENVENUE\n").await?;
+    conn.async_write_all(b"BIENVENUE\n").await?;
     let team_name = client.recv_line().await?;
 
     if team_name == b"GRAPHIC" {
-        ft_log::trace!("client #{id} is a graphical monitor");
+        ft_log::trace!("client {conn:?} is a graphical monitor");
         self::gfx_connection::handle(client).await
     } else {
         let team_name =
