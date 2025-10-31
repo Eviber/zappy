@@ -12,6 +12,8 @@ use crate::client::Client;
 use crate::player::PlayerError;
 use crate::state::rng::Rng;
 
+use core::ops::{Index, IndexMut};
+
 mod rng;
 mod world;
 
@@ -188,6 +190,36 @@ pub struct PlayerInventory {
     thystame: u32,
 }
 
+impl Index<ObjectClass> for PlayerInventory {
+    type Output = u32;
+
+    fn index(&self, object: ObjectClass) -> &Self::Output {
+        match object {
+            ObjectClass::Food => &self.time_to_live,
+            ObjectClass::Linemate => &self.linemate,
+            ObjectClass::Deraumere => &self.deraumere,
+            ObjectClass::Sibur => &self.sibur,
+            ObjectClass::Mendiane => &self.mendiane,
+            ObjectClass::Phiras => &self.phiras,
+            ObjectClass::Thystame => &self.thystame,
+        }
+    }
+}
+
+impl IndexMut<ObjectClass> for PlayerInventory {
+    fn index_mut(&mut self, object: ObjectClass) -> &mut Self::Output {
+        match object {
+            ObjectClass::Food => &mut self.time_to_live,
+            ObjectClass::Linemate => &mut self.linemate,
+            ObjectClass::Deraumere => &mut self.deraumere,
+            ObjectClass::Sibur => &mut self.sibur,
+            ObjectClass::Mendiane => &mut self.mendiane,
+            ObjectClass::Phiras => &mut self.phiras,
+            ObjectClass::Thystame => &mut self.thystame,
+        }
+    }
+}
+
 impl PlayerInventory {
     #[must_use]
     pub fn new() -> Self {
@@ -204,42 +236,6 @@ impl PlayerInventory {
 
     pub fn get_food(&self) -> u32 {
         self.time_to_live / 126
-    }
-
-    fn count(&self, object: ObjectClass) -> u32 {
-        match object {
-            ObjectClass::Food => self.time_to_live / 126,
-            ObjectClass::Linemate => self.linemate,
-            ObjectClass::Deraumere => self.deraumere,
-            ObjectClass::Sibur => self.sibur,
-            ObjectClass::Mendiane => self.mendiane,
-            ObjectClass::Phiras => self.phiras,
-            ObjectClass::Thystame => self.thystame,
-        }
-    }
-
-    fn add_one(&mut self, object: ObjectClass) {
-        match object {
-            ObjectClass::Food => self.time_to_live += 126,
-            ObjectClass::Linemate => self.linemate += 1,
-            ObjectClass::Deraumere => self.deraumere += 1,
-            ObjectClass::Sibur => self.sibur += 1,
-            ObjectClass::Mendiane => self.mendiane += 1,
-            ObjectClass::Phiras => self.phiras += 1,
-            ObjectClass::Thystame => self.thystame += 1,
-        }
-    }
-
-    fn remove_one(&mut self, object: ObjectClass) {
-        match object {
-            ObjectClass::Food => self.time_to_live -= 126,
-            ObjectClass::Linemate => self.linemate -= 1,
-            ObjectClass::Deraumere => self.deraumere -= 1,
-            ObjectClass::Sibur => self.sibur -= 1,
-            ObjectClass::Mendiane => self.mendiane -= 1,
-            ObjectClass::Phiras => self.phiras -= 1,
-            ObjectClass::Thystame => self.thystame -= 1,
-        }
     }
 }
 
@@ -440,23 +436,19 @@ impl State {
             Command::Inventory => Response::Inventory(player.inventory),
             Command::PickUpObject(object) => {
                 let cell_index = player.x + player.y * self.world.width;
-                if self.world.cells[cell_index].count(object) > 0 {
-                    self.world.cells[cell_index].remove_one(object);
-                    player.inventory.add_one(object);
-                    Response::Ok
-                } else {
-                    Response::Ko
-                }
+                ObjectClass::try_pick_up_object(
+                    &mut self.world.cells[cell_index],
+                    &mut player.inventory,
+                    object,
+                )
             }
             Command::DropObject(object) => {
                 let cell_index = player.x + player.y * self.world.width;
-                if player.inventory.count(object) > 0 {
-                    self.world.cells[cell_index].add_one(object);
-                    player.inventory.remove_one(object);
-                    Response::Ok
-                } else {
-                    Response::Ko
-                }
+                ObjectClass::try_drop_object(
+                    &mut player.inventory,
+                    &mut self.world.cells[cell_index],
+                    object,
+                )
             }
             _ => Response::Ok,
         }
