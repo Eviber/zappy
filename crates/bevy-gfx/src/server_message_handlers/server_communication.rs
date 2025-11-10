@@ -8,21 +8,10 @@ mod server_message;
 
 pub use server_message::ServerMessage;
 
-pub struct ServerCommunicationPlugin {
-    pub server_address: String,
-}
-
-impl Default for ServerCommunicationPlugin {
-    fn default() -> Self {
-        Self {
-            server_address: "127.0.0.1:1234".to_string(),
-        }
-    }
-}
+pub struct ServerCommunicationPlugin;
 
 impl Plugin for ServerCommunicationPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(ServerAddress(self.server_address.clone()));
         app.add_systems(Startup, setup_server_connection);
         app.add_message::<ServerMessage>();
         app.add_systems(PreUpdate, receive_server_message);
@@ -31,6 +20,12 @@ impl Plugin for ServerCommunicationPlugin {
 
 #[derive(Resource)]
 pub struct ServerAddress(String);
+
+impl ServerAddress {
+    pub fn new(address: impl ToString) -> Self {
+        ServerAddress(address.to_string())
+    }
+}
 
 #[derive(Resource)]
 pub struct ServerConnection {

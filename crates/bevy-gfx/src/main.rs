@@ -1,6 +1,7 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
 
+mod args;
 mod draw;
 mod server_message_handlers;
 mod user_input;
@@ -34,8 +35,12 @@ struct Forking;
 
 const TILE_SIZE: f32 = 5.0;
 
+use server_message_handlers::ServerAddress;
+
 fn main() {
+    let server_address = args::server_address();
     App::new()
+        .insert_resource(ServerAddress::new(server_address))
         .add_plugins(DefaultPlugins)
         .add_plugins(draw::DrawPlugin)
         .add_plugins(server_message_handlers::ServerMessageHandlersPlugin)
