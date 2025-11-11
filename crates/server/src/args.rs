@@ -51,13 +51,13 @@ pub struct Args<'a> {
     /// Passed using the `-x` flag.
     ///
     /// **Default:** `32`
-    pub width: u32,
+    pub width: usize,
     /// The height of the world.
     ///
     /// Passed using the `-y` flag.
     ///
     /// **Default:** `32`
-    pub height: u32,
+    pub height: usize,
     /// The name of the teams that will be playing the game.
     ///
     /// Passed using the `-n` flag.

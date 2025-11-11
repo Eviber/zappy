@@ -34,11 +34,11 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
         //
         // Returns the contents of a specific tile.
         b"bct" => {
-            let Some(x) = parse_token::<u32>(tokens.next()) else {
+            let Some(x) = parse_token::<usize>(tokens.next()) else {
                 _ = writeln!(buffer, "error: can't parse X");
                 return Ok(());
             };
-            let Some(y) = parse_token::<u32>(tokens.next()) else {
+            let Some(y) = parse_token::<usize>(tokens.next()) else {
                 _ = writeln!(buffer, "error: can't parse Y");
                 return Ok(());
             };

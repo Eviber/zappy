@@ -33,14 +33,14 @@ pub type MonitorId = usize;
 /// A direction in which the player can be facing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlayerDirection {
-    /// The player faces the negative Y direction.
-    North,
     /// The player faces the positive Y direction.
+    North,
+    /// The player faces the positive X direction.
+    East,
+    /// The player faces the negative Y direction.
     South,
     /// The player faces the negative X direction.
     West,
-    /// The player faces the positive X direction.
-    East,
 }
 
 impl PlayerDirection {
@@ -48,9 +48,9 @@ impl PlayerDirection {
     pub fn turn_right(self) -> Self {
         match self {
             PlayerDirection::North => PlayerDirection::East,
+            PlayerDirection::East => PlayerDirection::South,
             PlayerDirection::South => PlayerDirection::West,
             PlayerDirection::West => PlayerDirection::North,
-            PlayerDirection::East => PlayerDirection::South,
         }
     }
 
@@ -58,9 +58,9 @@ impl PlayerDirection {
     pub fn turn_left(self) -> Self {
         match self {
             PlayerDirection::North => PlayerDirection::West,
+            PlayerDirection::East => PlayerDirection::North,
             PlayerDirection::South => PlayerDirection::East,
             PlayerDirection::West => PlayerDirection::South,
-            PlayerDirection::East => PlayerDirection::North,
         }
     }
 }

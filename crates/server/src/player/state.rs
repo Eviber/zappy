@@ -3,8 +3,9 @@ use {
     crate::{
         client::Client,
         rng::Rng,
-        state::{PlayerDirection, TeamId},
+        state::{ObjectClass, PlayerDirection, TeamId},
     },
+    core::ops::{Index, IndexMut},
     ft::collections::ArrayVec,
 };
 
@@ -15,6 +16,73 @@ struct ScheduledCommand {
     pub command: Command,
     /// The number of ticks remaining before the command is executed.
     pub remaining_ticks: u32,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PlayerInventory {
+    /// Food.
+    pub time_to_live: u32,
+    /// Linemate.
+    pub linemate: u32,
+    /// Deraumere.
+    pub deraumere: u32,
+    /// Sibur.
+    pub sibur: u32,
+    /// Mendiane.
+    pub mendiane: u32,
+    /// Phiras.
+    pub phiras: u32,
+    /// Thystame.
+    pub thystame: u32,
+}
+
+impl Index<ObjectClass> for PlayerInventory {
+    type Output = u32;
+
+    fn index(&self, object: ObjectClass) -> &Self::Output {
+        match object {
+            ObjectClass::Food => &self.time_to_live,
+            ObjectClass::Linemate => &self.linemate,
+            ObjectClass::Deraumere => &self.deraumere,
+            ObjectClass::Sibur => &self.sibur,
+            ObjectClass::Mendiane => &self.mendiane,
+            ObjectClass::Phiras => &self.phiras,
+            ObjectClass::Thystame => &self.thystame,
+        }
+    }
+}
+
+impl IndexMut<ObjectClass> for PlayerInventory {
+    fn index_mut(&mut self, object: ObjectClass) -> &mut Self::Output {
+        match object {
+            ObjectClass::Food => &mut self.time_to_live,
+            ObjectClass::Linemate => &mut self.linemate,
+            ObjectClass::Deraumere => &mut self.deraumere,
+            ObjectClass::Sibur => &mut self.sibur,
+            ObjectClass::Mendiane => &mut self.mendiane,
+            ObjectClass::Phiras => &mut self.phiras,
+            ObjectClass::Thystame => &mut self.thystame,
+        }
+    }
+}
+
+impl PlayerInventory {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            time_to_live: 1260,
+            linemate: 0,
+            deraumere: 0,
+            sibur: 0,
+            mendiane: 0,
+            phiras: 0,
+            thystame: 0,
+        }
+    }
+
+    pub fn get_food(&self) -> u32 {
+        self.time_to_live / 126
+    }
 }
 
 /// Defines the state that is kept per-player.
@@ -30,10 +98,11 @@ pub struct PlayerState {
     /// The direction in which the player is facing.
     pub facing: PlayerDirection,
     /// Current position of the player on the horizontal axis.
-    pub x: u32,
+    pub x: usize,
     /// Current position of the player on the vertical axis.
-    pub y: u32,
-
+    pub y: usize,
+    /// Items currently held by the player
+    pub inventory: PlayerInventory,
     /// The current level of the player.
     pub level: u32,
 }
@@ -53,8 +122,8 @@ impl PlayerState {
         client: &Client,
         team_id: TeamId,
         rng: &mut Rng,
-        width: u32,
-        height: u32,
+        width: usize,
+        height: usize,
     ) -> Self {
         Self {
             team_id,
@@ -67,9 +136,10 @@ impl PlayerState {
                 3 => PlayerDirection::West,
                 _ => unreachable!(),
             },
-            x: rng.next_u64() as u32 % width,
-            y: rng.next_u64() as u32 % height,
+            x: rng.next_u64() as usize % width,
+            y: rng.next_u64() as usize % height,
             level: 0,
+            inventory: PlayerInventory::new(),
         }
     }
 
@@ -121,7 +191,7 @@ impl PlayerState {
     }
 
     /// Advances the player's position based on their current direction.
-    pub fn advance_position(&mut self, width: u32, height: u32) {
+    pub fn advance_position(&mut self, width: usize, height: usize) {
         match self.facing {
             PlayerDirection::North if self.y == height - 1 => self.y = 0,
             PlayerDirection::North => self.y += 1,

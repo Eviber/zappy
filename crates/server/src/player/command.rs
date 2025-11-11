@@ -4,6 +4,55 @@ use {
     alloc::{boxed::Box, format},
 };
 
+/*
+/// A response that can be sent back to a player.
+pub enum Response {
+    /// The string `"ok"`.
+    Ok,
+    /// The string `"ko"`.
+    Ko,
+    /// The number of available slots in the team.
+    ConnectNbr(u32),
+    Inventory(PlayerInventory),
+}
+
+impl Response {
+    /// Sends the response to the specified file descriptor.
+    pub async fn send_to(&self, fd: ft::Fd, buf: &mut String) -> ft::Result<()> {
+        match self {
+            Response::Ok => ft_async::futures::write_all(fd, b"ok\n").await?,
+            Response::Ko => ft_async::futures::write_all(fd, b"ko\n").await?,
+            Response::ConnectNbr(nbr) => {
+                // NOTE: This cannot fail because writing to a string in this way will panic in case
+                // of memory allocation failure instead of returning an error.
+                let result = writeln!(buf, "{}", nbr);
+                debug_assert!(result.is_ok(), "writing to a string should never fail");
+                ft_async::futures::write_all(fd, buf.as_bytes()).await?
+            }
+            Response::Inventory(inventory) => {
+                let result = writeln!(
+                    buf,
+                    "{{nourriture {}, linemate {}, deraumere {}, sibur {}, mendiane {}, phiras {}, thystame {}}}",
+                    inventory.get_food(),
+                    inventory.linemate,
+                    inventory.deraumere,
+                    inventory.sibur,
+                    inventory.mendiane,
+                    inventory.phiras,
+                    inventory.thystame,
+                );
+                debug_assert!(result.is_ok(), "writing to a string should never fail");
+                ft_async::futures::write_all(fd, buf.as_bytes()).await?
+            }
+        }
+
+        Ok(())
+    }
+}
+
+
+*/
+
 /// A command that a player may attempt to execute.
 #[derive(Debug)]
 pub enum Command {
@@ -100,6 +149,43 @@ impl Command {
                 player.advance_position(state.world.width, state.world.height);
                 player.conn.async_write_all(b"ok\n").await?;
                 broadcast_player_moved(state, player_id).await;
+            }
+            Command::Inventory => {
+                let result = format!(
+                    "{{nourriture {}, linemate {}, deraumere {}, sibur {}, mendiane {}, phiras {}, thystame {}}}\n",
+                    player.inventory.get_food(),
+                    player.inventory.linemate,
+                    player.inventory.deraumere,
+                    player.inventory.sibur,
+                    player.inventory.mendiane,
+                    player.inventory.phiras,
+                    player.inventory.thystame,
+                );
+                player.conn.async_write_all(result.as_bytes()).await?;
+            }
+            Command::PickUpObject(object) => {
+                let cell_index = player.x + player.y * state.world.width;
+                if ObjectClass::try_pick_up_object(
+                    &mut state.world.cells[cell_index],
+                    &mut player.inventory,
+                    object,
+                ) {
+                    player.conn.async_write_all(b"ok\n").await?;
+                } else {
+                    player.conn.async_write_all(b"ko\n").await?;
+                }
+            }
+            Command::DropObject(object) => {
+                let cell_index = player.x + player.y * state.world.width;
+                if ObjectClass::try_drop_object(
+                    &mut player.inventory,
+                    &mut state.world.cells[cell_index],
+                    object,
+                ) {
+                    player.conn.async_write_all(b"ok\n").await?;
+                } else {
+                    player.conn.async_write_all(b"ko\n").await?;
+                }
             }
             _ => {
                 player

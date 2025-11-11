@@ -1,5 +1,7 @@
 use crate::Vec;
+use crate::player::PlayerInventory;
 use alloc::vec;
+use core::ops::{Index, IndexMut};
 
 /// The class of an object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -34,6 +36,49 @@ impl ObjectClass {
             _ => None,
         }
     }
+
+    pub fn try_pick_up_object(
+        cell: &mut WorldCell,
+        inventory: &mut PlayerInventory,
+        object: ObjectClass,
+    ) -> bool {
+        if cell[object] > 0 {
+            cell[object] -= 1;
+            match object {
+                // Food is represented as 126 time_to_live in PlayerInventory
+                ObjectClass::Food => inventory.time_to_live += 126,
+                _ => inventory[object] += 1,
+            }
+            return true;
+        }
+        false
+    }
+
+    pub fn try_drop_object(
+        inventory: &mut PlayerInventory,
+        cell: &mut WorldCell,
+        object: ObjectClass,
+    ) -> bool {
+        match object {
+            // Food is represented as 126 time_to_live in PlayerInventory
+            ObjectClass::Food => {
+                if inventory.time_to_live >= 126 {
+                    inventory.time_to_live -= 126;
+                    cell[object] += 1;
+                    return true;
+                }
+                false
+            }
+            _ => {
+                if inventory[object] > 0 {
+                    inventory[object] -= 1;
+                    cell[object] += 1;
+                    return true;
+                }
+                false
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -58,23 +103,53 @@ pub struct WorldCell {
     pub egg_count: u32,
 }
 
+impl Index<ObjectClass> for WorldCell {
+    type Output = u32;
+
+    fn index(&self, object: ObjectClass) -> &Self::Output {
+        match object {
+            ObjectClass::Food => &self.food,
+            ObjectClass::Linemate => &self.linemate,
+            ObjectClass::Deraumere => &self.deraumere,
+            ObjectClass::Sibur => &self.sibur,
+            ObjectClass::Mendiane => &self.mendiane,
+            ObjectClass::Phiras => &self.phiras,
+            ObjectClass::Thystame => &self.thystame,
+        }
+    }
+}
+
+impl IndexMut<ObjectClass> for WorldCell {
+    fn index_mut(&mut self, object: ObjectClass) -> &mut Self::Output {
+        match object {
+            ObjectClass::Food => &mut self.food,
+            ObjectClass::Linemate => &mut self.linemate,
+            ObjectClass::Deraumere => &mut self.deraumere,
+            ObjectClass::Sibur => &mut self.sibur,
+            ObjectClass::Mendiane => &mut self.mendiane,
+            ObjectClass::Phiras => &mut self.phiras,
+            ObjectClass::Thystame => &mut self.thystame,
+        }
+    }
+}
+
 /// The world state.
 pub struct World {
     /// The width of the world.
-    pub width: u32,
+    pub width: usize,
     /// The height of the world.
-    pub height: u32,
+    pub height: usize,
     /// The contents of the world
     pub cells: Vec<WorldCell>,
 }
 
 impl World {
     /// Creates a new [`World`] with the specified dimensions.
-    pub fn new(width: u32, height: u32) -> Self {
+    pub fn new(width: usize, height: usize) -> Self {
         Self {
             width,
             height,
-            cells: vec![WorldCell::default(); (width * height) as usize],
+            cells: vec![WorldCell::default(); width * height],
         }
     }
 }
