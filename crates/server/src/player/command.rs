@@ -4,55 +4,6 @@ use {
     alloc::{boxed::Box, format},
 };
 
-/*
-/// A response that can be sent back to a player.
-pub enum Response {
-    /// The string `"ok"`.
-    Ok,
-    /// The string `"ko"`.
-    Ko,
-    /// The number of available slots in the team.
-    ConnectNbr(u32),
-    Inventory(PlayerInventory),
-}
-
-impl Response {
-    /// Sends the response to the specified file descriptor.
-    pub async fn send_to(&self, fd: ft::Fd, buf: &mut String) -> ft::Result<()> {
-        match self {
-            Response::Ok => ft_async::futures::write_all(fd, b"ok\n").await?,
-            Response::Ko => ft_async::futures::write_all(fd, b"ko\n").await?,
-            Response::ConnectNbr(nbr) => {
-                // NOTE: This cannot fail because writing to a string in this way will panic in case
-                // of memory allocation failure instead of returning an error.
-                let result = writeln!(buf, "{}", nbr);
-                debug_assert!(result.is_ok(), "writing to a string should never fail");
-                ft_async::futures::write_all(fd, buf.as_bytes()).await?
-            }
-            Response::Inventory(inventory) => {
-                let result = writeln!(
-                    buf,
-                    "{{nourriture {}, linemate {}, deraumere {}, sibur {}, mendiane {}, phiras {}, thystame {}}}",
-                    inventory.get_food(),
-                    inventory.linemate,
-                    inventory.deraumere,
-                    inventory.sibur,
-                    inventory.mendiane,
-                    inventory.phiras,
-                    inventory.thystame,
-                );
-                debug_assert!(result.is_ok(), "writing to a string should never fail");
-                ft_async::futures::write_all(fd, buf.as_bytes()).await?
-            }
-        }
-
-        Ok(())
-    }
-}
-
-
-*/
-
 /// A command that a player may attempt to execute.
 #[derive(Debug)]
 pub enum Command {
