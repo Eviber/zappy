@@ -391,9 +391,6 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "clap",
- "log",
- "nix",
- "rand",
 ]
 
 [[package]]
