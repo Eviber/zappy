@@ -36,6 +36,7 @@ pub(crate) fn zoom_camera(
     };
     for event in scroll_events.read() {
         let scroll_amount = -event.y;
+        debug_assert_ne!(camera.translation, center);
         let direction = (camera.translation - center).normalize();
         let zoom_speed = ZOOM_SPEED;
         camera.translation += direction * scroll_amount * zoom_speed;
@@ -87,6 +88,8 @@ pub(crate) fn rotate_camera(
         // Get current position relative to center
         let current_pos = camera_transform.translation - center;
         let distance = current_pos.length();
+
+        debug_assert!(distance > f32::EPSILON);
 
         // Calculate current pitch angle (angle from horizontal plane)
         let current_pitch = (current_pos.y / distance).asin();
