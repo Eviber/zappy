@@ -106,8 +106,16 @@ pub struct PlayerConnectsFromEgg {
     pub egg_id: u32,
 }
 
-fn int_parse_error(e: std::num::ParseIntError) -> String {
-    e.to_string()
+use std::num::ParseIntError;
+
+/// Utility to parse an integer from a string, returning a String error on failure.
+fn parse_int<T: FromStr<Err = ParseIntError>>(s: &str) -> Result<T, String> {
+    s.parse().map_err(|e: ParseIntError| e.to_string())
+}
+
+/// Utility to parse an id prefixed with an optional '#'.
+fn parse_id(s: &str) -> Result<u32, String> {
+    parse_int(s.strip_prefix('#').unwrap_or(s))
 }
 
 impl FromStr for UpdateMapSize {
@@ -119,8 +127,8 @@ impl FromStr for UpdateMapSize {
             return Err("Invalid map size format".to_string());
         }
         Ok(UpdateMapSize {
-            width: parts[1].parse().map_err(int_parse_error)?,
-            height: parts[2].parse().map_err(int_parse_error)?,
+            width: parse_int(parts[1])?,
+            height: parse_int(parts[2])?,
         })
     }
 }
@@ -134,22 +142,20 @@ impl FromStr for UpdateTileContent {
             return Err("Invalid tile content format".to_string());
         }
         Ok(UpdateTileContent {
-            x: parts[1].parse().map_err(int_parse_error)?,
-            y: parts[2].parse().map_err(int_parse_error)?,
+            x: parse_int(parts[1])?,
+            y: parse_int(parts[2])?,
             items: [
-                parts[3].parse().map_err(int_parse_error)?,
-                parts[4].parse().map_err(int_parse_error)?,
-                parts[5].parse().map_err(int_parse_error)?,
-                parts[6].parse().map_err(int_parse_error)?,
-                parts[7].parse().map_err(int_parse_error)?,
-                parts[8].parse().map_err(int_parse_error)?,
-                parts[9].parse().map_err(int_parse_error)?,
+                parse_int(parts[3])?,
+                parse_int(parts[4])?,
+                parse_int(parts[5])?,
+                parse_int(parts[6])?,
+                parse_int(parts[7])?,
+                parse_int(parts[8])?,
+                parse_int(parts[9])?,
             ],
         })
     }
 }
-
-// TODO: Make the # in front of IDs optional
 
 impl FromStr for NewPlayer {
     type Err = String;
@@ -160,11 +166,11 @@ impl FromStr for NewPlayer {
             return Err("Invalid new player format".to_string());
         }
         Ok(NewPlayer {
-            id: parts[1][1..].parse().map_err(int_parse_error)?,
-            x: parts[2].parse().map_err(int_parse_error)?,
-            y: parts[3].parse().map_err(int_parse_error)?,
-            orientation: parts[4].parse().map_err(int_parse_error)?,
-            level: parts[5].parse().map_err(int_parse_error)?,
+            id: parse_id(parts[1])?,
+            x: parse_int(parts[2])?,
+            y: parse_int(parts[3])?,
+            orientation: parse_int(parts[4])?,
+            level: parse_int(parts[5])?,
             team: parts[6].to_string(),
         })
     }
@@ -179,10 +185,10 @@ impl FromStr for PlayerPosition {
             return Err("Invalid player position format".to_string());
         }
         Ok(PlayerPosition {
-            id: parts[1][1..].parse().map_err(int_parse_error)?,
-            x: parts[2].parse().map_err(int_parse_error)?,
-            y: parts[3].parse().map_err(int_parse_error)?,
-            orientation: parts[4].parse().map_err(int_parse_error)?,
+            id: parse_id(parts[1])?,
+            x: parse_int(parts[2])?,
+            y: parse_int(parts[3])?,
+            orientation: parse_int(parts[4])?,
         })
     }
 }
@@ -196,8 +202,8 @@ impl FromStr for PlayerLevel {
             return Err("Invalid player level format".to_string());
         }
         Ok(PlayerLevel {
-            id: parts[1][1..].parse().map_err(int_parse_error)?,
-            level: parts[2].parse().map_err(int_parse_error)?,
+            id: parse_id(parts[1])?,
+            level: parse_int(parts[2])?,
         })
     }
 }
@@ -211,17 +217,17 @@ impl FromStr for PlayerInventory {
             return Err("Invalid player inventory format".to_string());
         }
         Ok(PlayerInventory {
-            id: parts[1][1..].parse().map_err(int_parse_error)?,
-            _x: parts[2].parse().map_err(int_parse_error)?,
-            _y: parts[3].parse().map_err(int_parse_error)?,
+            id: parse_id(parts[1])?,
+            _x: parse_int(parts[2])?,
+            _y: parse_int(parts[3])?,
             items: [
-                parts[4].parse().map_err(int_parse_error)?,
-                parts[5].parse().map_err(int_parse_error)?,
-                parts[6].parse().map_err(int_parse_error)?,
-                parts[7].parse().map_err(int_parse_error)?,
-                parts[8].parse().map_err(int_parse_error)?,
-                parts[9].parse().map_err(int_parse_error)?,
-                parts[10].parse().map_err(int_parse_error)?,
+                parse_int(parts[4])?,
+                parse_int(parts[5])?,
+                parse_int(parts[6])?,
+                parse_int(parts[7])?,
+                parse_int(parts[8])?,
+                parse_int(parts[9])?,
+                parse_int(parts[10])?,
             ],
         })
     }
@@ -236,8 +242,8 @@ impl FromStr for PlayerItemInteraction {
             return Err("Invalid player item interaction format".to_string());
         }
         Ok(PlayerItemInteraction {
-            player_id: parts[1][1..].parse().map_err(int_parse_error)?,
-            item_id: parts[2].parse().map_err(int_parse_error)?,
+            player_id: parse_id(parts[1])?,
+            item_id: parse_int(parts[2])?,
         })
     }
 }
@@ -250,7 +256,7 @@ impl FromStr for Id {
         if parts.len() != 2 {
             return Err("Invalid id format".to_string());
         }
-        Ok(Id(parts[1][1..].parse().map_err(int_parse_error)?))
+        Ok(Id(parse_id(parts[1])?))
     }
 }
 
@@ -263,7 +269,7 @@ impl FromStr for PlayerBroadcast {
             return Err("Invalid player broadcast format".to_string());
         }
         Ok(PlayerBroadcast {
-            id: parts[1][1..].parse().map_err(int_parse_error)?,
+            id: parse_id(parts[1])?,
             message: parts[2..].join(" "),
         })
     }
@@ -279,12 +285,12 @@ impl FromStr for IncantationStart {
         }
         let players = parts[4..]
             .iter()
-            .map(|p| p[1..].parse().map_err(int_parse_error))
+            .map(|p| parse_id(p))
             .collect::<Result<Vec<u32>, String>>()?;
         Ok(IncantationStart {
-            x: parts[1].parse().map_err(int_parse_error)?,
-            y: parts[2].parse().map_err(int_parse_error)?,
-            incantation_level: parts[3].parse().map_err(int_parse_error)?,
+            x: parse_int(parts[1])?,
+            y: parse_int(parts[2])?,
+            incantation_level: parse_int(parts[3])?,
             players,
         })
     }
@@ -299,8 +305,8 @@ impl FromStr for IncantationEnd {
             return Err("Invalid incantation end format".to_string());
         }
         Ok(IncantationEnd {
-            x: parts[1].parse().map_err(int_parse_error)?,
-            y: parts[2].parse().map_err(int_parse_error)?,
+            x: parse_int(parts[1])?,
+            y: parse_int(parts[2])?,
             success: match parts[3] {
                 "1" => true,
                 "0" => false,
@@ -319,10 +325,10 @@ impl FromStr for NewEgg {
             return Err("Invalid new egg format".to_string());
         }
         Ok(NewEgg {
-            id: parts[1][1..].parse().map_err(int_parse_error)?,
-            parent_id: parts[2][1..].parse().map_err(int_parse_error)?,
-            x: parts[3].parse().map_err(int_parse_error)?,
-            y: parts[4].parse().map_err(int_parse_error)?,
+            id: parse_id(parts[1])?,
+            parent_id: parse_id(parts[2])?,
+            x: parse_int(parts[3])?,
+            y: parse_int(parts[4])?,
         })
     }
 }
@@ -336,7 +342,7 @@ impl FromStr for PlayerConnectsFromEgg {
             return Err("Invalid player connects from egg format".to_string());
         }
         Ok(PlayerConnectsFromEgg {
-            egg_id: parts[1][1..].parse().map_err(int_parse_error)?,
+            egg_id: parse_id(parts[1])?,
         })
     }
 }
@@ -349,7 +355,7 @@ impl FromStr for UpdateGameTick {
         if parts.len() != 2 || parts[0] != "sgt" {
             return Err("Invalid game tick format".to_string());
         }
-        Ok(UpdateGameTick(parts[1].parse().map_err(int_parse_error)?))
+        Ok(UpdateGameTick(parse_int(parts[1])?))
     }
 }
 
