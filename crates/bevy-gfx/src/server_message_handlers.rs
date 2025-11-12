@@ -579,11 +579,11 @@ fn add_egg(
                     .insert(MeshMaterial3d(materials.add(Color::srgb(0.8, 0.2, 0.2))));
             } else {
                 warn!("Egg #{} created from non-forking player #{}", msg.id, id.0);
-                return;
+                continue;
             }
         } else {
             warn!("New egg #{} from unknown player #{}", msg.id, msg.parent_id);
-            return;
+            continue;
         }
         info!("Added egg #{} from player #{}", msg.id, msg.parent_id);
     }
