@@ -1,6 +1,6 @@
 
 [workspace]
-members = ["crates/bevy-gfx","crates/client", "crates/gfx"]
+members = ["crates/bevy-gfx","crates/client", "crates/gfx-tui"]
 exclude = ["crates/server"]
 resolver = "3"
 
