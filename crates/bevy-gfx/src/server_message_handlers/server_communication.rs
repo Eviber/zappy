@@ -34,14 +34,6 @@ pub struct ServerConnection {
     buffer: String,
 }
 
-// impl ServerConnection {
-//     pub fn send(&mut self, message: &str) -> io::Result<()> {
-//         self.stream.write_all(message.as_bytes())?;
-//         self.stream.write_all(b"\n")?;
-//         self.stream.flush()
-//     }
-// }
-
 pub fn setup_server_connection(mut commands: Commands, server_address: Res<ServerAddress>) {
     match TcpStream::connect(&server_address.0) {
         Ok(stream) => {
