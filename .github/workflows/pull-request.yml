@@ -28,6 +28,8 @@ jobs:
         run: cargo fmt --manifest-path crates/client/Cargo.toml --verbose --check
       - name: Format (gfx)
         run: cargo fmt --manifest-path crates/gfx/Cargo.toml --verbose --check
+      - name: Format (gfx-tui)
+        run: cargo fmt --manifest-path crates/gfx-tui/Cargo.toml --verbose --check
       - name: Clippy (client)
         run: cargo clippy --verbose
       - name: Clippy (server)
