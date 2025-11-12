@@ -7,6 +7,8 @@ use super::Ground;
 use super::MapSize;
 use super::Player;
 
+const PLAYER_AXES_LENGTH: f32 = 1.5;
+
 pub(crate) struct DrawPlugin;
 
 impl Plugin for DrawPlugin {
@@ -34,7 +36,7 @@ fn setup(mut commands: Commands) {
 /// Draw 3D axes of the players
 fn axes(mut gizmos: Gizmos, query: Query<(&GlobalTransform,), With<Player>>) {
     for (transform,) in &query {
-        let length = 1.5;
+        let length = PLAYER_AXES_LENGTH;
         gizmos.axes(*transform, length);
     }
 }

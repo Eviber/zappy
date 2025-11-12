@@ -480,6 +480,8 @@ fn player_broadcast(mut reader: MessageReader<ServerMessage>, query: Query<&Id, 
 #[derive(Component)]
 struct Incanting;
 
+const INCANTATION_RISE_HEIGHT: f32 = 0.5;
+
 fn start_incantation(
     mut reader: MessageReader<ServerMessage>,
     mut commands: Commands,
@@ -494,7 +496,7 @@ fn start_incantation(
                 players.iter_mut().find(|(_, id, _)| id.0 == *player_id)
             {
                 commands.entity(entity).insert(Incanting);
-                transform.translation.y += 0.5;
+                transform.translation.y += INCANTATION_RISE_HEIGHT;
                 info!(
                     "Player #{} is participating in incantation at ({}, {})",
                     player_id, msg.x, msg.y
@@ -525,7 +527,7 @@ fn end_incantation(
                 continue;
             }
             commands.entity(entity).remove::<Incanting>();
-            transform.translation.y -= 0.5;
+            transform.translation.y -= INCANTATION_RISE_HEIGHT;
         }
         if !msg.success {
             info!(

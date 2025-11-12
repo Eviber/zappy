@@ -5,6 +5,13 @@ use super::TILE_SIZE;
 
 use super::MapSize;
 
+const ZOOM_SPEED: f32 = 1.0;
+const MIN_CAMERA_DISTANCE: f32 = 5.0;
+const MAX_CAMERA_DISTANCE: f32 = 100.0;
+const MIN_PITCH_ANGLE: f32 = 10f32.to_radians();
+const MAX_PITCH_ANGLE: f32 = 80f32.to_radians();
+const BASE_ROTATION_SENSITIVITY: f32 = 2.0;
+
 /// Plugin to handle user input for camera control
 pub(crate) struct UserInputPlugin;
 
@@ -30,11 +37,11 @@ pub(crate) fn zoom_camera(
     for event in scroll_events.read() {
         let scroll_amount = -event.y;
         let direction = (camera.translation - center).normalize();
-        let zoom_speed = 1.0;
+        let zoom_speed = ZOOM_SPEED;
         camera.translation += direction * scroll_amount * zoom_speed;
         // Ensure the camera doesn't get too close or too far
-        let min_distance = 5.0;
-        let max_distance = 100.0;
+        let min_distance = MIN_CAMERA_DISTANCE;
+        let max_distance = MAX_CAMERA_DISTANCE;
         let current_distance = (camera.translation - center).length();
         if current_distance < min_distance {
             camera.translation = center + direction * min_distance;
@@ -69,13 +76,10 @@ pub(crate) fn rotate_camera(
     };
     let mut camera_transform = camera_query;
 
-    let min_pitch = 10f32.to_radians();
-    let max_pitch = 80f32.to_radians();
-
     // Process all mouse motion events this frame
     for motion in mouse_motion.read() {
         // Scale sensitivity based on window size
-        let base_sensitivity = 2.0;
+        let base_sensitivity = BASE_ROTATION_SENSITIVITY;
         let sensitivity = base_sensitivity / window.width().min(window.height());
         let yaw_delta = -motion.delta.x * sensitivity;
         let pitch_delta = motion.delta.y * sensitivity;
@@ -88,7 +92,7 @@ pub(crate) fn rotate_camera(
         let current_pitch = (current_pos.y / distance).asin();
 
         // Clamp the new pitch angle within bounds
-        let new_pitch = (current_pitch + pitch_delta).clamp(min_pitch, max_pitch);
+        let new_pitch = (current_pitch + pitch_delta).clamp(MIN_PITCH_ANGLE, MAX_PITCH_ANGLE);
         let actual_pitch_delta = current_pitch - new_pitch;
 
         // Apply yaw rotation (around world Y axis) - no clamping needed
