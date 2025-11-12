@@ -21,19 +21,23 @@ impl Plugin for UserInputPlugin {
     }
 }
 
+fn map_center(map_size: &MapSize) -> Vec3 {
+    let delta_x = map_size.width as f32 * TILE_SIZE / 2. - TILE_SIZE / 2.;
+    let delta_y = map_size.height as f32 * TILE_SIZE / 2. - TILE_SIZE / 2.;
+    Vec3 {
+        x: delta_x,
+        y: 0.,
+        z: delta_y,
+    }
+}
+
 /// Update the camera distance with the scroll
 pub(crate) fn zoom_camera(
     mut scroll_events: MessageReader<MouseWheel>,
     mut camera: Single<&mut Transform, With<Camera3d>>,
     map_size: Res<MapSize>,
 ) {
-    let delta_x = map_size.width as f32 * TILE_SIZE / 2. - TILE_SIZE / 2.;
-    let delta_y = map_size.height as f32 * TILE_SIZE / 2. - TILE_SIZE / 2.;
-    let center: Vec3 = Vec3 {
-        x: delta_x,
-        y: 0.,
-        z: delta_y,
-    };
+    let center = map_center(&map_size);
     for event in scroll_events.read() {
         let scroll_amount = -event.y;
         debug_assert_ne!(camera.translation, center);
@@ -68,13 +72,7 @@ pub(crate) fn rotate_camera(
         return;
     }
 
-    let delta_x = map_size.width as f32 * TILE_SIZE / 2. - TILE_SIZE / 2.;
-    let delta_y = map_size.height as f32 * TILE_SIZE / 2. - TILE_SIZE / 2.;
-    let center: Vec3 = Vec3 {
-        x: delta_x,
-        y: 0.,
-        z: delta_y,
-    };
+    let center = map_center(&map_size);
     let mut camera_transform = camera_query;
 
     // Process all mouse motion events this frame
