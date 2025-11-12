@@ -521,8 +521,8 @@ fn end_incantation(
             continue;
         };
         for (entity, mut transform) in players.iter_mut() {
-            let pos_x = transform.translation.x as usize / TILE_SIZE as usize;
-            let pos_y = transform.translation.z as usize / TILE_SIZE as usize;
+            let pos_x = (transform.translation.x / TILE_SIZE).round() as usize;
+            let pos_y = (transform.translation.z / TILE_SIZE).round() as usize;
             if pos_x != msg.x || pos_y != msg.y {
                 continue;
             }
