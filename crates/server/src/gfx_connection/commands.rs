@@ -63,7 +63,7 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
                 );
                 return Ok(());
             }
-            let cell = st.world.cells[y as usize * st.world.width as usize + x as usize];
+            let cell = st.world.cells[y * st.world.width + x];
             _ = writeln!(
                 buffer,
                 "bct {} {} {} {} {} {} {} {} {}",
@@ -95,7 +95,7 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
             let st = state();
             for y in 0..st.world.height {
                 for x in 0..st.world.width {
-                    let cell = st.world.cells[y as usize * st.world.width as usize + x as usize];
+                    let cell = st.world.cells[y * st.world.width + x];
                     _ = writeln!(
                         buffer,
                         "bct {} {} {} {} {} {} {} {} {}",

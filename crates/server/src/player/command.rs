@@ -125,6 +125,7 @@ impl Command {
                 } else {
                     player.conn.async_write_all(b"ko\n").await?;
                 }
+                broadcast_inventory_transfer(state, player_id, object).await;
             }
             Command::DropObject(object) => {
                 let cell_index = player.x + player.y * state.world.width;
@@ -137,6 +138,7 @@ impl Command {
                 } else {
                     player.conn.async_write_all(b"ko\n").await?;
                 }
+                broadcast_inventory_transfer(state, player_id, object).await;
             }
             _ => {
                 player
@@ -161,6 +163,44 @@ async fn broadcast_player_moved(state: &State, player_id: PlayerId) {
             )
             .as_bytes(),
         )
+        .await;
+}
+
+/// Broadcasts a player's inventory transfer from/to a cell of the world (the current
+/// cell of the player).
+async fn broadcast_inventory_transfer(state: &State, player_id: PlayerId, obj: ObjectClass) {
+    let player = &state.players[player_id];
+    let cell_index = player.y * state.world.width + player.x;
+    let cell_inv = &state.world.cells[cell_index];
+
+    let broadcasted_bytes = format!(
+        "\
+        pgt #{player_id} {obj:?}\n\
+        pin #{player_id} {x} {y} {a1} {b1} {c1} {d1} {e1} {f1} {g1}\n\
+        bct {x} {y} {a2} {b2} {c2} {d2} {e2} {f2} {g2}\n\
+        ",
+        player_id = player_id,
+        obj = obj,
+        x = player.x,
+        y = player.y,
+        a1 = player.inventory.get_food(),
+        b1 = player.inventory.linemate,
+        c1 = player.inventory.deraumere,
+        d1 = player.inventory.sibur,
+        e1 = player.inventory.mendiane,
+        f1 = player.inventory.phiras,
+        g1 = player.inventory.thystame,
+        a2 = cell_inv.food,
+        b2 = cell_inv.linemate,
+        c2 = cell_inv.deraumere,
+        d2 = cell_inv.sibur,
+        e2 = cell_inv.mendiane,
+        f2 = cell_inv.phiras,
+        g2 = cell_inv.thystame,
+    );
+
+    state
+        .broadcast_to_graphics_monitors(broadcasted_bytes.as_bytes())
         .await;
 }
 

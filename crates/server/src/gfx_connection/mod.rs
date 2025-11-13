@@ -44,7 +44,7 @@ pub async fn handle(mut client: Client) -> Result<(), ClientError> {
         let st = state();
         for y in 0..st.world.height {
             for x in 0..st.world.width {
-                let cell = st.world.cells[y as usize * st.world.width as usize + x as usize];
+                let cell = st.world.cells[y * st.world.width + x];
                 _ = writeln!(
                     buf,
                     "bct {} {} {} {} {} {} {} {} {}",
