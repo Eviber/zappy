@@ -1,5 +1,5 @@
 [package]
-name = "bevy-gfx"
+name = "gfx"
 version.workspace = true
 authors.workspace = true
 readme.workspace = true
