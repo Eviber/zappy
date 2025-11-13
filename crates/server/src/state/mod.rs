@@ -1,20 +1,17 @@
 //! Defines the global state of the server.
 
-use alloc::boxed::Box;
-use alloc::string::String;
-use alloc::vec::Vec;
-use core::fmt::Write;
-
-use ft::collections::ArrayVec;
+use {crate::player::PlayerState, core::fmt::Write};
+use {
+    crate::{player::PlayerId, rng::Rng},
+    slotmap::SlotMap,
+};
+use {alloc::boxed::Box, core::fmt::Display};
+use {alloc::vec::Vec, core::time::Duration};
 
 use crate::args::Args;
 use crate::client::Client;
 use crate::player::PlayerError;
-use crate::state::rng::Rng;
 
-use core::ops::{Index, IndexMut};
-
-mod rng;
 mod world;
 
 pub use self::world::*;
@@ -22,120 +19,16 @@ pub use self::world::*;
 /// The ID of a team.
 pub type TeamId = usize;
 
-/// A command that a player may attempt to execute.
-#[derive(Debug)]
-#[allow(dead_code)] // FIXME: temporary until all commands are implemented
-pub enum Command {
-    /// The `avance` command.
-    MoveForward,
-    /// The `gauche` command.
-    TurnLeft,
-    /// The `droite` command.
-    TurnRight,
-    /// The `voir` command.
-    LookAround,
-    /// The `inventaire` command.
-    Inventory,
-    /// The `prend` command.
-    PickUpObject(ObjectClass),
-    /// The `pose` command.
-    DropObject(ObjectClass),
-    /// The `expulse` command.
-    KnockPlayer,
-    /// The `broadcast` command.
-    Broadcast(Box<[u8]>),
-    /// The `incantation` command.
-    Evolve,
-    /// The `fork` command.
-    LayAnEgg,
-    /// The `connect_nbr` command.
-    AvailableTeamSlots,
-}
-
-impl Command {
-    /// Returns the number of ticks that this command takes to execute.
-    pub fn ticks(&self) -> u32 {
-        match self {
-            Command::MoveForward => 7,
-            Command::TurnLeft => 7,
-            Command::TurnRight => 7,
-            Command::LookAround => 7,
-            Command::Inventory => 1,
-            Command::PickUpObject(_) => 7,
-            Command::DropObject(_) => 7,
-            Command::KnockPlayer => 7,
-            Command::Broadcast(_) => 7,
-            Command::Evolve => 300,
-            Command::LayAnEgg => 42,
-            Command::AvailableTeamSlots => 0,
-        }
-    }
-}
-
-/// A response that can be sent back to a player.
-pub enum Response {
-    /// The string `"ok"`.
-    Ok,
-    /// The string `"ko"`.
-    Ko,
-    /// The number of available slots in the team.
-    ConnectNbr(u32),
-    Inventory(PlayerInventory),
-}
-
-impl Response {
-    /// Sends the response to the specified file descriptor.
-    pub async fn send_to(&self, fd: ft::Fd, buf: &mut String) -> ft::Result<()> {
-        match self {
-            Response::Ok => ft_async::futures::write_all(fd, b"ok\n").await?,
-            Response::Ko => ft_async::futures::write_all(fd, b"ko\n").await?,
-            Response::ConnectNbr(nbr) => {
-                // NOTE: This cannot fail because writing to a string in this way will panic in case
-                // of memory allocation failure instead of returning an error.
-                let result = writeln!(buf, "{}", nbr);
-                debug_assert!(result.is_ok(), "writing to a string should never fail");
-                ft_async::futures::write_all(fd, buf.as_bytes()).await?
-            }
-            Response::Inventory(inventory) => {
-                let result = writeln!(
-                    buf,
-                    "{{nourriture {}, linemate {}, deraumere {}, sibur {}, mendiane {}, phiras {}, thystame {}}}",
-                    inventory.get_food(),
-                    inventory.linemate,
-                    inventory.deraumere,
-                    inventory.sibur,
-                    inventory.mendiane,
-                    inventory.phiras,
-                    inventory.thystame,
-                );
-                debug_assert!(result.is_ok(), "writing to a string should never fail");
-                ft_async::futures::write_all(fd, buf.as_bytes()).await?
-            }
-        }
-
-        Ok(())
-    }
-}
-
-/// A command that has been scheduled to be executed in the future.
-#[derive(Debug)]
-pub struct ScheduledCommand {
-    /// The command that has been scheduled.
-    pub command: Command,
-    /// The number of ticks remaining before the command is executed.
-    pub remaining_ticks: u32,
-}
-
 /// Information about the state of a team.
 pub struct Team {
     /// The name of the team.
-    name: Box<str>,
+    pub name: Box<str>,
     /// The number of available slots in the team.
-    available_slots: u32,
+    pub available_slots: u32,
 }
 
-/// The ID of a player.
-pub type PlayerId = usize;
+/// The ID of a monitor.
+pub type MonitorId = usize;
 
 /// A direction in which the player can be facing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -172,146 +65,31 @@ impl PlayerDirection {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct PlayerInventory {
-    /// Food.
-    time_to_live: u32,
-    /// Linemate.
-    linemate: u32,
-    /// Deraumere.
-    deraumere: u32,
-    /// Sibur.
-    sibur: u32,
-    /// Mendiane.
-    mendiane: u32,
-    /// Phiras.
-    phiras: u32,
-    /// Thystame.
-    thystame: u32,
-}
-
-impl Index<ObjectClass> for PlayerInventory {
-    type Output = u32;
-
-    fn index(&self, object: ObjectClass) -> &Self::Output {
-        match object {
-            ObjectClass::Food => &self.time_to_live,
-            ObjectClass::Linemate => &self.linemate,
-            ObjectClass::Deraumere => &self.deraumere,
-            ObjectClass::Sibur => &self.sibur,
-            ObjectClass::Mendiane => &self.mendiane,
-            ObjectClass::Phiras => &self.phiras,
-            ObjectClass::Thystame => &self.thystame,
-        }
-    }
-}
-
-impl IndexMut<ObjectClass> for PlayerInventory {
-    fn index_mut(&mut self, object: ObjectClass) -> &mut Self::Output {
-        match object {
-            ObjectClass::Food => &mut self.time_to_live,
-            ObjectClass::Linemate => &mut self.linemate,
-            ObjectClass::Deraumere => &mut self.deraumere,
-            ObjectClass::Sibur => &mut self.sibur,
-            ObjectClass::Mendiane => &mut self.mendiane,
-            ObjectClass::Phiras => &mut self.phiras,
-            ObjectClass::Thystame => &mut self.thystame,
-        }
-    }
-}
-
-impl PlayerInventory {
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            time_to_live: 1260,
-            linemate: 0,
-            deraumere: 0,
-            sibur: 0,
-            mendiane: 0,
-            phiras: 0,
-            thystame: 0,
-        }
-    }
-
-    pub fn get_food(&self) -> u32 {
-        self.time_to_live / 126
-    }
-}
-
-/// The state of a player.
-pub struct PlayerState {
-    /// The ID of the player.
-    player_id: PlayerId,
-    /// The ID of the team the player is in.
-    team_id: TeamId,
-    /// The connection that was open with the player.
-    conn: ft::Fd,
-    /// The commands that have been buffered for the player.
-    commands: ArrayVec<ScheduledCommand, 10>,
-    /// A direction in which the player is facing.
-    facing: PlayerDirection,
-    /// Current position of the player on the horizontal axis.
-    x: usize,
-    /// Current position of the player on the vertical axis.
-    y: usize,
-    /// Items currently held by the player
-    inventory: PlayerInventory,
-}
-
-impl PlayerState {
-    /// Schedules a command for this player.
-    ///
-    /// # Returns
-    ///
-    /// `true` if the command has been scheduled, `false` if the buffer is full.
-    pub fn schedule_command(&mut self, command: Command) -> bool {
-        self.commands
-            .try_push(ScheduledCommand {
-                remaining_ticks: command.ticks(),
-                command,
-            })
-            .is_ok()
-    }
-
-    /// Turns the player right.
-    #[inline]
-    pub fn turn_right(&mut self) {
-        self.facing = self.facing.turn_right();
-    }
-
-    /// Turns the player left.
-    #[inline]
-    pub fn turn_left(&mut self) {
-        self.facing = self.facing.turn_left();
-    }
-
-    /// Advances the player's position based on their current direction.
-    pub fn advance_position(&mut self, width: usize, height: usize) {
-        match self.facing {
-            PlayerDirection::North if self.y == height - 1 => self.y = 0,
-            PlayerDirection::North => self.y += 1,
-            PlayerDirection::East if self.x == width - 1 => self.x = 0,
-            PlayerDirection::East => self.x += 1,
-            PlayerDirection::South if self.y == 0 => self.y = height - 1,
-            PlayerDirection::South => self.y -= 1,
-            PlayerDirection::West if self.x == 0 => self.x = width - 1,
-            PlayerDirection::West => self.x -= 1,
+impl Display for PlayerDirection {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::North => f.write_char('1'),
+            Self::East => f.write_char('2'),
+            Self::South => f.write_char('3'),
+            Self::West => f.write_char('4'),
         }
     }
 }
 
 /// The global state of the server, responsible for managing the clients and the game.
-#[allow(clippy::vec_box)] // `PlayerState` is a huge struct, copying it around is not a good idea.
 pub struct State {
     /// Information about the teams available in the current game.
     pub teams: Box<[Team]>,
     /// The list of players currently connected to the server.
-    pub players: Vec<Box<PlayerState>>,
+    pub players: SlotMap<PlayerId, PlayerState>,
     /// The current state of the world.
     pub world: World,
     /// The random number generator used by the server.
     pub rng: Rng,
+    /// The list of graphics monitors that have subscribed to the server.
+    pub gfx_monitors: Vec<ft::Fd>,
+    /// The duration between each tick of the world.
+    pub tick_duration: Duration,
 }
 
 impl State {
@@ -330,9 +108,11 @@ impl State {
 
         Self {
             teams,
-            players: Vec::new(),
+            players: SlotMap::default(),
             world,
             rng: Rng::from_urandom().unwrap_or(Rng::new(0xdeadbeef)),
+            gfx_monitors: Vec::new(),
+            tick_duration: Duration::from_secs_f32(1.0 / args.tick_frequency),
         }
     }
 
@@ -365,49 +145,29 @@ impl State {
 
         team.available_slots -= 1;
 
-        self.players.push(Box::new(PlayerState {
-            player_id: client.id(),
+        let player_id = self.players.insert(PlayerState::new_random(
+            client,
             team_id,
-            conn: client.fd(),
-            commands: ArrayVec::new(),
-            facing: match self.rng.next_u64() % 4 {
-                0 => PlayerDirection::North,
-                1 => PlayerDirection::East,
-                2 => PlayerDirection::South,
-                3 => PlayerDirection::West,
-                _ => unreachable!(),
-            },
-            x: self.rng.next_u64() as usize % self.world.width,
-            y: self.rng.next_u64() as usize % self.world.height,
-            inventory: PlayerInventory::new(),
-        }));
+            &mut self.rng,
+            self.world.width,
+            self.world.height,
+        ));
 
-        Ok(client.id())
-    }
-
-    /// Returns the index of a player in the list of players.
-    #[inline]
-    fn player_index_by_id(&self, player: PlayerId) -> Option<usize> {
-        self.players.iter().position(|p| p.player_id == player)
-    }
-
-    /// Returns the state of the player with the provided ID.
-    pub fn player_mut(&mut self, player: PlayerId) -> &mut PlayerState {
-        self.player_index_by_id(player)
-            .and_then(|i| self.players.get_mut(i))
-            .expect("no player with the provided ID")
+        Ok(player_id)
     }
 
     /// Removes a player from the server.
-    pub fn leave(&mut self, player: PlayerId) {
-        let index = self
+    ///
+    /// # Panics
+    ///
+    /// This function panics if the player does not exist.
+    #[track_caller]
+    pub fn leave(&mut self, player_id: PlayerId) {
+        let player = self
             .players
-            .iter()
-            .position(|p| p.player_id == player)
-            .expect("no player with the provided ID found");
-
-        let player = self.players.remove(index);
-        self.teams[player.team_id].available_slots += 1;
+            .remove(player_id)
+            .expect("Attempted to remove non-existent player");
+        self.teams[player.team_id()].available_slots += 1;
     }
 
     /// Returns the number of available slots in the specified team.
@@ -416,82 +176,39 @@ impl State {
         self.teams[team].available_slots
     }
 
-    /// Executes a command, returning a response.
-    pub fn execute_command(&mut self, command: Command, player: usize) -> Response {
-        let player = &mut self.players[player];
-
-        match command {
-            Command::TurnLeft => {
-                player.turn_left();
-                Response::Ok
-            }
-            Command::TurnRight => {
-                player.turn_right();
-                Response::Ok
-            }
-            Command::MoveForward => {
-                player.advance_position(self.world.width, self.world.height);
-                Response::Ok
-            }
-            Command::Inventory => Response::Inventory(player.inventory),
-            Command::PickUpObject(object) => {
-                let cell_index = player.x + player.y * self.world.width;
-                ObjectClass::try_pick_up_object(
-                    &mut self.world.cells[cell_index],
-                    &mut player.inventory,
-                    object,
-                )
-            }
-            Command::DropObject(object) => {
-                let cell_index = player.x + player.y * self.world.width;
-                ObjectClass::try_drop_object(
-                    &mut player.inventory,
-                    &mut self.world.cells[cell_index],
-                    object,
-                )
-            }
-            _ => Response::Ok,
-        }
-    }
-
     /// Notifies the state that a whole tick has passed.
     ///
     /// # Arguments
     ///
     /// - `responses` - a list of responses that must be sent to their associated file
     ///   descriptiors.
-    #[allow(clippy::unwrap_used)]
-    pub fn tick(&mut self, responses: &mut Vec<(ft::Fd, Response)>) {
-        for player_index in 0..self.players.len() {
-            let player = &mut self.players[player_index];
-            let Some(command) = player.commands.first_mut() else {
+    pub async fn tick(&mut self) {
+        let player_ids: Vec<PlayerId> = self.players.keys().collect();
+
+        for id in player_ids {
+            let Some(cmd) = self.players[id].try_unqueue_command() else {
                 continue;
             };
 
-            if command.remaining_ticks > 0 {
-                command.remaining_ticks -= 1;
-                continue;
-            }
-
-            // This unwrap can't ever fail because the case where there is no
-            // first element is handled above.
-            // Also, we can't optimize this with a swap_remove because the
-            // order in which commands are inserted matters. Maybe we can use
-            // a VecDeque instead, but that would be vastly overkill for those
-            // 10 elements.
-            let cmd = player.commands.remove(0).unwrap();
-
             // Execute the command.
-            ft_log::trace!(
-                "executing command for #{}: {:?}",
-                player.player_id,
-                cmd.command,
-            );
+            ft_log::trace!("executing command for {}: {:?}", id, cmd);
 
-            let player_conn = player.conn;
+            if let Err(err) = cmd.execute(id, self).await {
+                ft_log::error!("failed to execute command for player {}: {}", id, err);
+            }
+        }
+    }
 
-            let response = self.execute_command(cmd.command, player_index);
-            responses.push((player_conn, response));
+    /// Broadcasts a message to all registered graphics monitors.
+    pub async fn broadcast_to_graphics_monitors(&self, data: &[u8]) {
+        for monitor_fd in &self.gfx_monitors {
+            if let Err(err) = monitor_fd.async_write_all(data).await {
+                ft_log::error!(
+                    "failed to broadcast to graphics monitor {}: {}",
+                    monitor_fd.to_raw(),
+                    err
+                );
+            };
         }
     }
 }

@@ -32,3 +32,4 @@ ft = { git = "https://github.com/nils-mathieu/libft-rs", features = [
 ] }
 ft-async = { path = "./ft-async" }
 ft-log = { path = "./ft-log" }
+slotmap = { version = "1", default-features = false }

@@ -1,6 +1,5 @@
 use crate::Vec;
-use crate::state::PlayerInventory;
-use crate::state::Response;
+use crate::player::PlayerInventory;
 use alloc::vec;
 use core::ops::{Index, IndexMut};
 
@@ -42,7 +41,7 @@ impl ObjectClass {
         cell: &mut WorldCell,
         inventory: &mut PlayerInventory,
         object: ObjectClass,
-    ) -> Response {
+    ) -> bool {
         if cell[object] > 0 {
             cell[object] -= 1;
             match object {
@@ -50,33 +49,33 @@ impl ObjectClass {
                 ObjectClass::Food => inventory.time_to_live += 126,
                 _ => inventory[object] += 1,
             }
-            return Response::Ok;
+            return true;
         }
-        Response::Ko
+        false
     }
 
     pub fn try_drop_object(
         inventory: &mut PlayerInventory,
         cell: &mut WorldCell,
         object: ObjectClass,
-    ) -> Response {
+    ) -> bool {
         match object {
             // Food is represented as 126 time_to_live in PlayerInventory
             ObjectClass::Food => {
                 if inventory.time_to_live >= 126 {
                     inventory.time_to_live -= 126;
                     cell[object] += 1;
-                    return Response::Ok;
+                    return true;
                 }
-                Response::Ko
+                false
             }
             _ => {
                 if inventory[object] > 0 {
                     inventory[object] -= 1;
                     cell[object] += 1;
-                    return Response::Ok;
+                    return true;
                 }
-                Response::Ko
+                false
             }
         }
     }

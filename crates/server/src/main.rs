@@ -5,10 +5,10 @@
 #![feature(maybe_uninit_as_bytes)]
 #![deny(clippy::unwrap_used, unsafe_op_in_unsafe_fn)]
 #![warn(missing_docs, clippy::must_use_candidate)]
+#![allow(dead_code)] // FIXME: Remove this
 
 extern crate alloc;
 
-use alloc::string::String;
 use alloc::vec::Vec;
 
 use self::args::Args;
@@ -19,11 +19,12 @@ use self::state::{State, set_state, state};
 
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering::Relaxed;
-use core::time::Duration;
 
 mod args;
 mod client;
+mod gfx_connection;
 mod player;
+mod rng;
 mod server;
 mod state;
 
@@ -71,7 +72,7 @@ fn main(args: &[&ft::CharStar], _env: &[&ft::CharStar]) -> u8 {
 
     ft_log::trace!("spawning tasks...");
     ft_async::EXECUTOR.spawn(run_server(args.port));
-    ft_async::EXECUTOR.spawn(run_ticks(args.tick_frequency));
+    ft_async::EXECUTOR.spawn(run_ticks());
 
     ft_log::trace!("running the executor...");
     loop {
@@ -134,27 +135,27 @@ async fn run_server(port: u16) {
 /// Handles a connection from a client.
 async fn handle_connection(conn: ft::File, addr: ft::net::SocketAddr) {
     let client = Client::new(conn);
-    let id = client.id();
+    let fd = client.fd();
 
-    ft_log::info!("accepted a connection from `{addr}` (#{id})");
+    ft_log::info!("accepted a connection from `{addr}` ({fd:?})");
 
     match try_handle_connection(client).await {
         Ok(()) => (),
         Err(ClientError::Disconnected) => {
-            ft_log::info!("client #{id} disconnected");
+            ft_log::info!("client {fd:?} disconnected");
         }
         Err(ClientError::Unexpected(err)) => {
-            ft_log::error!("failed to handle client #{id}: {err}");
+            ft_log::error!("failed to handle client {fd:?}: {err}");
         }
         Err(ClientError::Player(err)) => {
-            ft_log::info!("player #{id} behaved badly: {err}");
+            ft_log::info!("player {fd:?} behaved badly: {err}");
         }
     }
 }
 
 /// See [`handle_connection`].
 async fn try_handle_connection(mut client: Client) -> Result<(), ClientError> {
-    let id = client.id();
+    let conn = client.fd();
 
     //
     // HANDSHAKE
@@ -168,12 +169,12 @@ async fn try_handle_connection(mut client: Client) -> Result<(), ClientError> {
     // The rest of the handshake depends on the type of client (player or graphical).
     //
 
-    client.send_raw(b"BIENVENUE\n").await?;
+    conn.async_write_all(b"BIENVENUE\n").await?;
     let team_name = client.recv_line().await?;
 
     if team_name == b"GRAPHIC" {
-        ft_log::trace!("client #{id} is a graphical monitor");
-        unimplemented!("graphical monitors are not yet supported");
+        ft_log::trace!("client {conn:?} is a graphical monitor");
+        self::gfx_connection::handle(client).await
     } else {
         let team_name =
             core::str::from_utf8(team_name).map_err(|_| PlayerError::InvalidTeamName)?;
@@ -185,38 +186,22 @@ async fn try_handle_connection(mut client: Client) -> Result<(), ClientError> {
 }
 
 /// Runs ticks on all the clients.
-async fn run_ticks(freq: f32) {
-    if let Err(err) = try_run_ticks(freq).await {
+async fn run_ticks() {
+    if let Err(err) = try_run_ticks().await {
         ft_log::error!("failed to run ticks: {err}");
     }
 }
 
 /// See [`run_ticks`].
-async fn try_run_ticks(freq: f32) -> ft::Result<()> {
-    let period = Duration::from_secs_f32(1.0 / freq);
+async fn try_run_ticks() -> ft::Result<()> {
     let mut next_tick = ft::Clock::MONOTONIC.get();
-
-    let mut responses = Vec::new();
-    let mut send_buf = String::new();
 
     loop {
         // Wait until the next tick.
         ft_async::futures::sleep(next_tick).await;
-        next_tick += period;
+        next_tick += state().tick_duration;
 
         // Notify the state.
-        responses.clear();
-        state().tick(&mut responses);
-
-        // Send the responses to the clients.
-        // TODO: optimize this by sending the responses concurrently.
-        // There's two ways to do this:
-        //  1. Create a proper future that sends all the responses concurrently.
-        //  2. Spawn a task per message, but that leaves no good way to re-use buffers.
-        //     This might not be a big problem though.
-        for (conn, response) in responses.iter() {
-            send_buf.clear();
-            response.send_to(*conn, &mut send_buf).await?;
-        }
+        state().tick().await;
     }
 }
