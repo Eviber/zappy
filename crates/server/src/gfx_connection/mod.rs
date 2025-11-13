@@ -41,7 +41,6 @@ pub async fn handle(mut client: Client) -> Result<(), ClientError> {
         _ = writeln!(buf, "msz {} {}", st.world.width, st.world.height);
         _ = writeln!(buf, "sgt {}", st.tick_duration.as_secs_f32());
 
-        let st = state();
         for y in 0..st.world.height {
             for x in 0..st.world.width {
                 let cell = st.world.cells[y * st.world.width + x];
