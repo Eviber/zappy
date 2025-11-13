@@ -85,7 +85,7 @@ pub struct PlayerBroadcast {
 pub struct IncantationStart {
     pub x: usize,
     pub y: usize,
-    pub incantation_level: u32,
+    pub _incantation_level: u32,
     pub players: Vec<u32>,
 }
 
@@ -290,7 +290,7 @@ impl FromStr for IncantationStart {
         Ok(IncantationStart {
             x: parse_int(parts[1])?,
             y: parse_int(parts[2])?,
-            incantation_level: parse_int(parts[3])?,
+            _incantation_level: parse_int(parts[3])?,
             players,
         })
     }
