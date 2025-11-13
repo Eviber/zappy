@@ -1,5 +1,5 @@
 [package]
-name = "gfx"
+name = "gfx-tui"
 description = "A Zappy graphical monitor."
 
 edition.workspace = true
