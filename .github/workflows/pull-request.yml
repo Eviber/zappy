@@ -15,12 +15,21 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwayland-dev \
+            libasound2-dev \
+            libudev-dev
       - name: Format (server)
         run: cargo fmt --manifest-path crates/server/Cargo.toml --verbose --check
       - name: Format (client)
         run: cargo fmt --manifest-path crates/client/Cargo.toml --verbose --check
       - name: Format (gfx)
         run: cargo fmt --manifest-path crates/gfx/Cargo.toml --verbose --check
+      - name: Format (gfx-tui)
+        run: cargo fmt --manifest-path crates/gfx-tui/Cargo.toml --verbose --check
       - name: Clippy (client)
         run: cargo clippy --verbose
       - name: Clippy (server)
