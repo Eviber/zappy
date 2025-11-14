@@ -461,13 +461,27 @@ fn kill_player(
     }
 }
 
-fn player_broadcast(mut reader: MessageReader<ServerMessage>, query: Query<&Id, With<Player>>) {
+#[derive(Component)]
+struct Broadcasting {
+    message: String,
+    timeout: Timer,
+}
+
+fn player_broadcast(
+    mut commands: Commands,
+    mut reader: MessageReader<ServerMessage>,
+    query: Query<(&Id, Entity), With<Player>>,
+) {
     for msg in reader.read() {
         let ServerMessage::PlayerBroadcast(msg) = msg else {
             continue;
         };
-        if query.iter().any(|id| id.0 == msg.id) {
+        if let Some((_, entity)) = query.iter().find(|(id, _)| id.0 == msg.id) {
             info!("Player #{} broadcasted message: {}", msg.id, msg.message);
+            commands.entity(entity).insert(Broadcasting {
+                message: msg.message.clone(),
+                timeout: Timer::from_seconds(3.0, TimerMode::Once),
+            });
         } else {
             warn!(
                 "Unknown player #{} broadcasted message: {}",
