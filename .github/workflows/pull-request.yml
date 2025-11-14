@@ -40,6 +40,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Install dependencies
+        if: needs.detect-changes.outputs.gfx == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
@@ -51,22 +52,30 @@ jobs:
         if: needs.detect-changes.outputs.server == 'true'
         run: cargo fmt --manifest-path crates/server/Cargo.toml --verbose --check
 
+      - name: Clippy (server)
+        if: needs.detect-changes.outputs.server == 'true'
+        run: cargo -Z unstable-options -C crates/server clippy --verbose
+
       - name: Format (client)
         if: needs.detect-changes.outputs.client == 'true'
         run: cargo fmt --manifest-path crates/client/Cargo.toml --verbose --check
+
+      - name: Clippy (client)
+        if: needs.detect-changes.outputs.client == 'true'
+        run: cargo clippy --manifest-path crates/client/Cargo.toml --verbose
 
       - name: Format (gfx)
         if: needs.detect-changes.outputs.gfx == 'true'
         run: cargo fmt --manifest-path crates/gfx/Cargo.toml --verbose --check
 
+      - name: Clippy (gfx)
+        if: needs.detect-changes.outputs.gfx == 'true'
+        run: cargo clippy --manifest-path crates/gfx/Cargo.toml --verbose
+
       - name: Format (gfx-tui)
         if: needs.detect-changes.outputs.gfx-tui == 'true'
         run: cargo fmt --manifest-path crates/gfx-tui/Cargo.toml --verbose --check
 
-      - name: Clippy (client)
-        if: needs.detect-changes.outputs.client == 'true'
-        run: cargo clippy --verbose
-
-      - name: Clippy (server)
-        if: needs.detect-changes.outputs.server == 'true'
-        run: cargo -Z unstable-options -C crates/server clippy --verbose
+      - name: Clippy (gfx-tui)
+        if: needs.detect-changes.outputs.gfx-tui == 'true'
+        run: cargo clippy --manifest-path crates/gfx-tui/Cargo.toml --verbose
