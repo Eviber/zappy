@@ -34,7 +34,8 @@ fn main() -> Result<()> {
     let mut tui = Tui::new(terminal, events);
     tui.enter()?;
 
-    let logs = vec!["This is a log message".to_string()];
+// TEST OLOWKOREQWEKI
+					    let logs = vec!["This is a log message".to_string()];
 
     app.logs = logs;
     // Start the main loop.
