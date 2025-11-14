@@ -32,7 +32,30 @@ jobs:
             gfx-tui:
               - 'crates/gfx-tui/**'
 
-  build:
+  format:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Format (server)
+        if: needs.detect-changes.outputs.server == 'true'
+        run: cargo fmt --manifest-path crates/server/Cargo.toml --verbose --check
+
+      - name: Format (client)
+        if: needs.detect-changes.outputs.client == 'true'
+        run: cargo fmt --manifest-path crates/client/Cargo.toml --verbose --check
+
+      - name: Format (gfx)
+        if: needs.detect-changes.outputs.gfx == 'true'
+        run: cargo fmt --manifest-path crates/gfx/Cargo.toml --verbose --check
+
+      - name: Format (gfx-tui)
+        if: needs.detect-changes.outputs.gfx-tui == 'true'
+        run: cargo fmt --manifest-path crates/gfx-tui/Cargo.toml --verbose --check
+
+  clippy:
     runs-on: ubuntu-latest
     needs: detect-changes
 
@@ -48,33 +71,17 @@ jobs:
             libasound2-dev \
             libudev-dev
 
-      - name: Format (server)
-        if: needs.detect-changes.outputs.server == 'true'
-        run: cargo fmt --manifest-path crates/server/Cargo.toml --verbose --check
-
       - name: Clippy (server)
         if: needs.detect-changes.outputs.server == 'true'
         run: cargo -Z unstable-options -C crates/server clippy --verbose
-
-      - name: Format (client)
-        if: needs.detect-changes.outputs.client == 'true'
-        run: cargo fmt --manifest-path crates/client/Cargo.toml --verbose --check
 
       - name: Clippy (client)
         if: needs.detect-changes.outputs.client == 'true'
         run: cargo clippy --manifest-path crates/client/Cargo.toml --verbose
 
-      - name: Format (gfx)
-        if: needs.detect-changes.outputs.gfx == 'true'
-        run: cargo fmt --manifest-path crates/gfx/Cargo.toml --verbose --check
-
       - name: Clippy (gfx)
         if: needs.detect-changes.outputs.gfx == 'true'
         run: cargo clippy --manifest-path crates/gfx/Cargo.toml --verbose
-
-      - name: Format (gfx-tui)
-        if: needs.detect-changes.outputs.gfx-tui == 'true'
-        run: cargo fmt --manifest-path crates/gfx-tui/Cargo.toml --verbose --check
 
       - name: Clippy (gfx-tui)
         if: needs.detect-changes.outputs.gfx-tui == 'true'
