@@ -17,12 +17,18 @@ jobs:
       client: ${{ steps.filter.outputs.client }}
       gfx: ${{ steps.filter.outputs.gfx }}
       gfx-tui: ${{ steps.filter.outputs.gfx-tui }}
+      workspace: ${{ steps.filter.outputs.workspace }}
     steps:
       - uses: actions/checkout@v3
       - uses: dorny/paths-filter@v3
         id: filter
         with:
           filters: |
+            workspace:
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'rust-toolchain.toml'
+              - '.cargo/**'
             server:
               - 'crates/server/**'
             client:
@@ -40,19 +46,19 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Format (server)
-        if: needs.detect-changes.outputs.server == 'true'
+        if: needs.detect-changes.outputs.server == 'true' || needs.detect-changes.outputs.workspace == 'true'
         run: cargo fmt --manifest-path crates/server/Cargo.toml --verbose --check
 
       - name: Format (client)
-        if: needs.detect-changes.outputs.client == 'true'
+        if: needs.detect-changes.outputs.client == 'true' || needs.detect-changes.outputs.workspace == 'true'
         run: cargo fmt --manifest-path crates/client/Cargo.toml --verbose --check
 
       - name: Format (gfx)
-        if: needs.detect-changes.outputs.gfx == 'true'
+        if: needs.detect-changes.outputs.gfx == 'true' || needs.detect-changes.outputs.workspace == 'true'
         run: cargo fmt --manifest-path crates/gfx/Cargo.toml --verbose --check
 
       - name: Format (gfx-tui)
-        if: needs.detect-changes.outputs.gfx-tui == 'true'
+        if: needs.detect-changes.outputs.gfx-tui == 'true' || needs.detect-changes.outputs.workspace == 'true'
         run: cargo fmt --manifest-path crates/gfx-tui/Cargo.toml --verbose --check
 
   clippy:
@@ -63,7 +69,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Install dependencies
-        if: needs.detect-changes.outputs.gfx == 'true'
+        if: needs.detect-changes.outputs.gfx == 'true' || needs.detect-changes.outputs.workspace == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
@@ -72,17 +78,17 @@ jobs:
             libudev-dev
 
       - name: Clippy (server)
-        if: needs.detect-changes.outputs.server == 'true'
+        if: needs.detect-changes.outputs.server == 'true' || needs.detect-changes.outputs.workspace == 'true'
         run: cargo -Z unstable-options -C crates/server clippy --verbose
 
       - name: Clippy (client)
-        if: needs.detect-changes.outputs.client == 'true'
+        if: needs.detect-changes.outputs.client == 'true' || needs.detect-changes.outputs.workspace == 'true'
         run: cargo clippy --manifest-path crates/client/Cargo.toml --verbose
 
       - name: Clippy (gfx)
-        if: needs.detect-changes.outputs.gfx == 'true'
+        if: needs.detect-changes.outputs.gfx == 'true' || needs.detect-changes.outputs.workspace == 'true'
         run: cargo clippy --manifest-path crates/gfx/Cargo.toml --verbose
 
       - name: Clippy (gfx-tui)
-        if: needs.detect-changes.outputs.gfx-tui == 'true'
+        if: needs.detect-changes.outputs.gfx-tui == 'true' || needs.detect-changes.outputs.workspace == 'true'
         run: cargo clippy --manifest-path crates/gfx-tui/Cargo.toml --verbose
