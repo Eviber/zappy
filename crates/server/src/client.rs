@@ -15,7 +15,7 @@ pub struct Client {
 
 impl Client {
     /// Creates a new [`Client`] from the provided file descriptor.
-				    pub fn new(conn: ft::File) -> Self {
+    pub fn new(conn: ft::File) -> Self {
         Self {
             conn,
             read_buf: ReadBuffer::new(),
