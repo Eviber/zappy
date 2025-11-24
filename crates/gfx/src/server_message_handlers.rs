@@ -35,7 +35,7 @@ impl Plugin for ServerMessageHandlersPlugin {
                 update_player_level,
                 update_player_inventory,
                 expulse_player,
-                player_broadcast,
+                (update_broadcasts, player_broadcast, follow_entities).chain(),
                 start_incantation,
                 end_incantation,
                 add_egg,
@@ -461,19 +461,76 @@ fn kill_player(
     }
 }
 
-fn player_broadcast(mut reader: MessageReader<ServerMessage>, query: Query<&Id, With<Player>>) {
+/// Component to make a node follow an entity
+#[derive(Component)]
+pub struct FollowEntity(pub Entity);
+
+/// Component to destroy the entity after some time
+#[derive(Component)]
+pub struct DestroyAfter(pub Timer);
+
+fn player_broadcast(
+    mut commands: Commands,
+    mut reader: MessageReader<ServerMessage>,
+    query: Query<(Entity, &Id), With<Player>>,
+) {
     for msg in reader.read() {
         let ServerMessage::PlayerBroadcast(msg) = msg else {
             continue;
         };
-        if query.iter().any(|id| id.0 == msg.id) {
+        if let Some((e, _)) = query.iter().find(|(_, id)| id.0 == msg.id) {
             info!("Player #{} broadcasted message: {}", msg.id, msg.message);
+            commands.spawn((
+                Node { ..default() },
+                Text::new(&msg.message),
+                TextColor(Color::BLACK),
+                FollowEntity(e),
+                DestroyAfter(Timer::from_seconds(2.0, TimerMode::Once)),
+            ));
         } else {
             warn!(
                 "Unknown player #{} broadcasted message: {}",
                 msg.id, msg.message
             );
         }
+    }
+}
+
+fn update_broadcasts(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut DestroyAfter)>,
+) {
+    for (entity, mut destroy_after) in query.iter_mut() {
+        destroy_after.0.tick(time.delta());
+        if destroy_after.0.is_finished() {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+fn follow_entities(
+    mut commands: Commands,
+    camera: Single<(&Camera, &GlobalTransform)>,
+    mut query: Query<(Entity, &FollowEntity, &mut Node), Without<Player>>,
+    players: Query<&Transform, With<Player>>,
+) {
+    let (camera, camera_transform) = *camera;
+    for (entity, follow_entity, mut node) in query.iter_mut() {
+        let Ok(target_transform) = players.get(follow_entity.0) else {
+            info!(
+                "Followed entity {:?} not found, despawning follower",
+                follow_entity.0
+            );
+            commands.entity(entity).despawn();
+            continue;
+        };
+        let screen_pos = camera.world_to_viewport(camera_transform, target_transform.translation);
+        let Ok(screen_pos) = screen_pos else {
+            continue;
+        };
+        node.left = Val::Px(screen_pos.x);
+        node.top = Val::Px(screen_pos.y);
     }
 }
 
