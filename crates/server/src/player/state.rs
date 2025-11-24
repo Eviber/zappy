@@ -104,7 +104,7 @@ pub struct PlayerState {
     /// Items currently held by the player
     pub inventory: PlayerInventory,
     /// The current level of the player.
-    pub level: u32,
+    pub level: usize,
 }
 
 impl PlayerState {
@@ -138,7 +138,7 @@ impl PlayerState {
             },
             x: rng.next_u64() as usize % width,
             y: rng.next_u64() as usize % height,
-            level: 0,
+            level: 1,
             inventory: PlayerInventory::new(),
         }
     }

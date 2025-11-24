@@ -1,6 +1,6 @@
 use crate::Vec;
 use crate::player::PlayerInventory;
-use alloc::vec;
+use crate::rng::Rng;
 use core::ops::{Index, IndexMut};
 
 /// The class of an object.
@@ -103,6 +103,30 @@ pub struct WorldCell {
     pub egg_count: u32,
 }
 
+impl WorldCell {
+    pub fn new(rng: &mut Rng) -> Self {
+        Self {
+            food: Self::random_item(rng),
+            linemate: Self::random_item(rng),
+            deraumere: Self::random_item(rng),
+            sibur: Self::random_item(rng),
+            mendiane: Self::random_item(rng),
+            phiras: Self::random_item(rng),
+            thystame: Self::random_item(rng),
+            player_count: 0,
+            egg_count: 0,
+        }
+    }
+
+    fn random_item(rng: &mut Rng) -> u32 {
+        let random = rng.next_u64() % 16;
+        if random < 4 {
+            return random as u32;
+        }
+        0
+    }
+}
+
 impl Index<ObjectClass> for WorldCell {
     type Output = u32;
 
@@ -145,11 +169,13 @@ pub struct World {
 
 impl World {
     /// Creates a new [`World`] with the specified dimensions.
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn new(width: usize, height: usize, rng: &mut Rng) -> Self {
+        let cells_count = width * height;
+        let cells = (0..cells_count).map(|_| WorldCell::new(rng)).collect();
         Self {
             width,
             height,
-            cells: vec![WorldCell::default(); width * height],
+            cells,
         }
     }
 }

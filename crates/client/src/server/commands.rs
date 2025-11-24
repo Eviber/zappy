@@ -178,7 +178,7 @@ impl FromStr for Response {
             s if s.parse::<u8>().is_ok() => Ok(FreeSlots(s.parse()?)),
             s if s.starts_with('{') && s.ends_with('}') => {
                 let s = &s[1..s.len() - 1];
-                let mut list = s.split(", ").peekable();
+                let mut list = s.split(",").map(|s| s.trim()).peekable();
                 // This is assuming that the command 'voir' never returns
                 // an empty list.
                 let Some(first) = list.peek() else {
@@ -225,7 +225,7 @@ where
     let mut seen = Vec::new();
     for row in list {
         let mut row_vec = Vec::new();
-        for obj in row.split(' ') {
+        for obj in row.split_whitespace() {
             row_vec.push(obj.parse()?);
         }
         seen.push(row_vec);
@@ -281,7 +281,7 @@ impl FromStr for Object {
             "mendiane" => Ok(Object::Mendiane),
             "phiras" => Ok(Object::Phiras),
             "thystame" => Ok(Object::Thystame),
-            "joueur" => Ok(Object::Player),
+            "player" => Ok(Object::Player),
             _ => Err(InvalidMsg::ParsingError),
         }
     }
