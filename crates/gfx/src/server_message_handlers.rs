@@ -472,19 +472,25 @@ pub struct DestroyAfter(pub Timer);
 fn player_broadcast(
     mut commands: Commands,
     mut reader: MessageReader<ServerMessage>,
-    query: Query<(Entity, &Id), With<Player>>,
+    players: Query<(Entity, &Id), With<Player>>,
+    current_nodes: Query<(Entity, &FollowEntity)>,
 ) {
     for msg in reader.read() {
         let ServerMessage::PlayerBroadcast(msg) = msg else {
             continue;
         };
-        if let Some((e, _)) = query.iter().find(|(_, id)| id.0 == msg.id) {
+        if let Some((player_e, _)) = players.iter().find(|(_, id)| id.0 == msg.id) {
             info!("Player #{} broadcasted message: {}", msg.id, msg.message);
+            for (node_e, follow_entity) in current_nodes.iter() {
+                if follow_entity.0 == player_e {
+                    commands.entity(node_e).despawn();
+                }
+            }
             commands.spawn((
                 Node { ..default() },
                 Text::new(&msg.message),
                 TextColor(Color::srgba(0., 0., 0., 0.)),
-                FollowEntity(e),
+                FollowEntity(player_e),
                 DestroyAfter(Timer::from_seconds(2.0, TimerMode::Once)),
             ));
         } else {
