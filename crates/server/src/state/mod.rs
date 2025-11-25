@@ -104,13 +104,14 @@ impl State {
             })
             .collect();
 
-        let world = World::new(args.width, args.height);
+        let mut rng = Rng::from_urandom().unwrap_or(Rng::new(0xdeadbeef));
+        let world = World::new(args.width, args.height, &mut rng);
 
         Self {
             teams,
             players: SlotMap::default(),
             world,
-            rng: Rng::from_urandom().unwrap_or(Rng::new(0xdeadbeef)),
+            rng,
             gfx_monitors: Vec::new(),
             tick_duration: Duration::from_secs_f32(1.0 / args.tick_frequency),
         }

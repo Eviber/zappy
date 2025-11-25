@@ -1,7 +1,8 @@
 use {
     super::{PlayerError, PlayerId},
-    crate::state::{ObjectClass, State},
-    alloc::{boxed::Box, format},
+    crate::Vec,
+    crate::state::{ObjectClass, PlayerDirection, State},
+    alloc::{boxed::Box, format, string::String},
 };
 
 /// A command that a player may attempt to execute.
@@ -139,6 +140,86 @@ impl Command {
                     player.conn.async_write_all(b"ko\n").await?;
                 }
                 broadcast_inventory_transfer(state, player_id, object).await;
+            }
+            Command::LookAround => {
+                let mut sight = Vec::with_capacity((player.level + 1) * (player.level + 1));
+
+                sight.push(Some(
+                    state.world.cells[player.x + player.y * state.world.width],
+                ));
+                let mut level_tool = 1;
+                // dir represents 2 2d vectors, the offset dir per level, and the offset dir per case inside that level
+                let dir: (i32, i32) = match player.facing {
+                    PlayerDirection::North => (0, 1),
+                    PlayerDirection::South => (0, -1),
+                    PlayerDirection::East => (1, 0),
+                    PlayerDirection::West => (-1, 0),
+                };
+                for i in 1..(player.level + 1) * (player.level + 1) {
+                    if level_tool * level_tool < (i + 1) {
+                        level_tool += 1;
+                    }
+                    let level_offset = (level_tool - 1) as i32;
+                    let level_index = (i as i32 + 1) - level_offset * level_offset;
+
+                    // trick to reduce tuple size used here
+                    let mut x_sight = player.x as i32
+                        + level_offset * dir.0
+                        + (level_index - level_offset - 1) * dir.1;
+                    let mut y_sight = player.y as i32 + level_offset * dir.1
+                        - (level_index - level_offset - 1) * dir.0;
+                    // these << 4 lines are because if world size is smaller than some number index out of bounds might occur
+                    x_sight += (state.world.width as i32) << 4;
+                    x_sight %= state.world.width as i32;
+                    y_sight += (state.world.height as i32) << 4;
+                    y_sight %= state.world.height as i32;
+                    sight.push(Some(
+                        state.world.cells[(x_sight + y_sight * state.world.width as i32) as usize],
+                    ));
+                }
+                ft_log::info!("len is {}", sight.len());
+                let mut result = String::from("{");
+                for i in 0..sight.len() {
+                    match sight[i] {
+                        Some(cell) => {
+                            for _ in 0..cell.food {
+                                result.push_str("nourriture ");
+                            }
+                            for _ in 0..cell.linemate {
+                                result.push_str("linemate ");
+                            }
+                            for _ in 0..cell.deraumere {
+                                result.push_str("deraumere ");
+                            }
+                            for _ in 0..cell.sibur {
+                                result.push_str("sibur ");
+                            }
+                            for _ in 0..cell.mendiane {
+                                result.push_str("mendiane ");
+                            }
+                            for _ in 0..cell.phiras {
+                                result.push_str("phiras ");
+                            }
+                            for _ in 0..cell.thystame {
+                                result.push_str("thystame ");
+                            }
+                            for _ in 0..cell.player_count {
+                                result.push_str("player ");
+                            }
+                        }
+                        None => break,
+                    }
+                    if result.len() > 1 {
+                        result.pop();
+                    }
+                    result.push_str(", ");
+                }
+                result.pop();
+                result.pop();
+                result.push_str("}\n");
+                ft_log::info!("successfully ended loop {}", result);
+                player.conn.async_write_all(result.as_bytes()).await?;
+                ft_log::info!("successfully sent message");
             }
             _ => {
                 player
