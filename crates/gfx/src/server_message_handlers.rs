@@ -483,7 +483,7 @@ fn player_broadcast(
             commands.spawn((
                 Node { ..default() },
                 Text::new(&msg.message),
-                TextColor(Color::BLACK),
+                TextColor(Color::srgba(0., 0., 0., 0.)),
                 FollowEntity(e),
                 DestroyAfter(Timer::from_seconds(2.0, TimerMode::Once)),
             ));
@@ -512,11 +512,25 @@ fn update_broadcasts(
 fn follow_entities(
     mut commands: Commands,
     camera: Single<(&Camera, &GlobalTransform)>,
-    mut query: Query<(Entity, &FollowEntity, &mut Node), Without<Player>>,
+    mut query: Query<
+        (
+            Entity,
+            &FollowEntity,
+            &ComputedNode,
+            &mut Node,
+            &mut TextColor,
+        ),
+        Without<Player>,
+    >,
     players: Query<&Transform, With<Player>>,
 ) {
     let (camera, camera_transform) = *camera;
-    for (entity, follow_entity, mut node) in query.iter_mut() {
+    for (entity, follow_entity, computed_node, mut node, mut color) in query.iter_mut() {
+        let size = computed_node.size();
+        if size.x == 0.0 && size.y == 0.0 {
+            // not yet computed
+            continue;
+        }
         let Ok(target_transform) = players.get(follow_entity.0) else {
             info!(
                 "Followed entity {:?} not found, despawning follower",
@@ -525,12 +539,14 @@ fn follow_entities(
             commands.entity(entity).despawn();
             continue;
         };
-        let screen_pos = camera.world_to_viewport(camera_transform, target_transform.translation);
+        let target = target_transform.translation + Vec3::new(0., 3., 0.);
+        let screen_pos = camera.world_to_viewport(camera_transform, target);
         let Ok(screen_pos) = screen_pos else {
             continue;
         };
-        node.left = Val::Px(screen_pos.x);
+        node.left = Val::Px(screen_pos.x - size.x / 2.);
         node.top = Val::Px(screen_pos.y);
+        *color = TextColor(Color::BLACK);
     }
 }
 
