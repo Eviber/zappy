@@ -84,25 +84,27 @@ impl Command {
 
     /// Executes the player command on the provided player.
     pub async fn execute(self, player_id: PlayerId, state: &mut State) -> ft::Result<()> {
-        let player = &mut state.players[player_id];
-
         match self {
             Command::TurnLeft => {
+                let player = &mut state.players[player_id];
                 player.turn_left();
                 player.conn.async_write_all(b"ok\n").await?;
                 broadcast_player_moved(state, player_id).await;
             }
             Command::TurnRight => {
+                let player = &mut state.players[player_id];
                 player.turn_right();
                 player.conn.async_write_all(b"ok\n").await?;
                 broadcast_player_moved(state, player_id).await;
             }
             Command::MoveForward => {
+                let player = &mut state.players[player_id];
                 player.advance_position(state.world.width, state.world.height);
                 player.conn.async_write_all(b"ok\n").await?;
                 broadcast_player_moved(state, player_id).await;
             }
             Command::Inventory => {
+                let player = &state.players[player_id];
                 let result = format!(
                     "{{nourriture {}, linemate {}, deraumere {}, sibur {}, mendiane {}, phiras {}, thystame {}}}\n",
                     player.inventory.get_food(),
@@ -116,6 +118,7 @@ impl Command {
                 player.conn.async_write_all(result.as_bytes()).await?;
             }
             Command::PickUpObject(object) => {
+                let player = &mut state.players[player_id];
                 let cell_index = player.x + player.y * state.world.width;
                 if ObjectClass::try_pick_up_object(
                     &mut state.world.cells[cell_index],
@@ -129,6 +132,7 @@ impl Command {
                 broadcast_inventory_transfer(state, player_id, object).await;
             }
             Command::DropObject(object) => {
+                let player = &mut state.players[player_id];
                 let cell_index = player.x + player.y * state.world.width;
                 if ObjectClass::try_drop_object(
                     &mut player.inventory,
@@ -142,6 +146,7 @@ impl Command {
                 broadcast_inventory_transfer(state, player_id, object).await;
             }
             Command::LookAround => {
+                let player = &state.players[player_id];
                 let mut sight = Vec::with_capacity((player.level + 1) * (player.level + 1));
 
                 sight.push(Some(
@@ -221,7 +226,34 @@ impl Command {
                 player.conn.async_write_all(result.as_bytes()).await?;
                 ft_log::info!("successfully sent message");
             }
+            Command::KnockPlayer => {
+                let player_x = state.players[player_id].x;
+                let player_y = state.players[player_id].y;
+                let front_cell =
+                    state.players[player_id].get_front_cell(state.world.width, state.world.height);
+                let kickee_string = match state.players[player_id].facing {
+                    PlayerDirection::North => String::from("deplacement 3\n"),
+                    PlayerDirection::East => String::from("deplacement 4\n"),
+                    PlayerDirection::South => String::from("deplacement 1\n"),
+                    PlayerDirection::West => String::from("deplacement 2\n"),
+                };
+                for (kickee_id, kickee) in &mut state.players {
+                    if kickee.x == player_x && kickee.y == player_y && kickee_id != player_id {
+                        kickee.x = front_cell.0;
+                        kickee.y = front_cell.1;
+                        kickee
+                            .conn
+                            .async_write_all(kickee_string.as_bytes())
+                            .await?;
+                    }
+                }
+                state.players[player_id]
+                    .conn
+                    .async_write_all(b"ok\n")
+                    .await?;
+            }
             _ => {
+                let player = &state.players[player_id];
                 player
                     .conn
                     .async_write_all(b"error: not implemented yet\n")
