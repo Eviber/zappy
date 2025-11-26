@@ -24,13 +24,11 @@ impl Plugin for ServerMessageHandlersPlugin {
         app.add_systems(
             Update,
             (
-                update_tile_content,
                 add_team,
                 add_player,
                 fork_player,
                 move_player,
-                player_drop_item,
-                player_get_item,
+                ((player_drop_item, player_get_item), update_tile_content).chain(),
                 animate_moving_items,
                 kill_player,
                 update_player_level,
@@ -439,7 +437,6 @@ fn player_drop_item(
             item,
             player_translation,
         );
-        // Animate the drop (simple linear interpolation for now)
         commands.entity(entity).insert(MovingItem {
             start_pos: player_translation,
             target_pos,
@@ -459,7 +456,11 @@ fn item_stack_offset(player_translation: Vec3, stack_size: usize) -> Vec3 {
 
 // Same as above
 fn player_get_item(
+    mut commands: Commands,
     mut reader: MessageReader<ServerMessage>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut stacks: ResMut<TileStacks>,
     query: Query<(&Id, &Transform), With<Player>>,
 ) {
     for msg in reader.read() {
@@ -473,11 +474,40 @@ fn player_get_item(
             );
             continue;
         };
-        let Some((_, _transform)) = query.iter().find(|(id, _)| id.0 == msg.player_id) else {
+        let Some((_, transform)) = query.iter().find(|(id, _)| id.0 == msg.player_id) else {
             warn!("Received get item from unknown player #{}", msg.player_id);
             continue;
         };
         info!("Player #{} got item {}", msg.player_id, item);
+        let tile_x = (transform.translation.x / TILE_SIZE).round() as usize;
+        let tile_y = (transform.translation.z / TILE_SIZE).round() as usize;
+        let stack = stacks.0.entry((tile_x, tile_y)).or_default();
+        let delta = item.delta_vec();
+        let offset = item_stack_offset(
+            Vec3::new(tile_x as f32 * TILE_SIZE, 0., tile_y as f32 * TILE_SIZE),
+            stack[msg.item_id as usize].len() - 1,
+        );
+        let item_position = delta + offset;
+        let entity = stack[msg.item_id as usize].pop().unwrap_or_else(|| {
+            warn!(
+                "No item {} found on tile ({}, {}) for player #{} to get",
+                item, tile_x, tile_y, msg.player_id
+            );
+            spawn_resource(
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                item,
+                item_position,
+            )
+        });
+        let player_translation = transform.translation;
+        commands.entity(entity).insert(MovingItem {
+            start_pos: item_position,
+            target_pos: player_translation,
+            progress: 0.0,
+            duration: ANIMATION_DURATION,
+        });
     }
 }
 
