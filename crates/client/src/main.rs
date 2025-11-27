@@ -41,6 +41,8 @@ fn main() -> Result<()> {
     loop {
         //server.send_command(random_command())?;
         //while let Msg::Notif(_) = server.receive()? {}
+        server.send_command(Command::Broadcast("Hello!"))?;
+        while let Msg::Notif(_) = server.receive()? {}
         server.send_command(Command::Inventory)?;
         while let Msg::Notif(_) = server.receive()? {}
         server.send_command(Command::Look)?;
