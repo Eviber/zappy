@@ -18,6 +18,7 @@ authors = [
     "Youva Gaudé <ygaude@student.42.fr>",
     "Tiago Lernould <tlernoul@student.42.fr>",
     "Nils Mathieu <nmathieu@student.42.fr>",
+	"Gaëtan Brochard <gbrochar@student.42.fr>",
 ]
 readme = "README.md"
 edition = "2024"

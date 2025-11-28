@@ -190,17 +190,23 @@ impl PlayerState {
         self.facing = self.facing.turn_left();
     }
 
+    pub fn get_front_cell(&self, width: usize, height: usize) -> (usize, usize) {
+        match self.facing {
+            PlayerDirection::North if self.y == height - 1 => (self.x, 0),
+            PlayerDirection::North => (self.x, self.y + 1),
+            PlayerDirection::South if self.y == 0 => (self.x, height - 1),
+            PlayerDirection::South => (self.x, self.y - 1),
+            PlayerDirection::West if self.x == 0 => (width - 1, self.y),
+            PlayerDirection::West => (self.x - 1, self.y),
+            PlayerDirection::East if self.x == width - 1 => (0, self.y),
+            PlayerDirection::East => (self.x + 1, self.y),
+        }
+    }
+
     /// Advances the player's position based on their current direction.
     pub fn advance_position(&mut self, width: usize, height: usize) {
-        match self.facing {
-            PlayerDirection::North if self.y == height - 1 => self.y = 0,
-            PlayerDirection::North => self.y += 1,
-            PlayerDirection::South if self.y == 0 => self.y = height - 1,
-            PlayerDirection::South => self.y -= 1,
-            PlayerDirection::West if self.x == 0 => self.x = width - 1,
-            PlayerDirection::West => self.x -= 1,
-            PlayerDirection::East if self.x == width - 1 => self.x = 0,
-            PlayerDirection::East => self.x += 1,
-        }
+        let front_cell = self.get_front_cell(width, height);
+        self.x = front_cell.0;
+        self.y = front_cell.1;
     }
 }
