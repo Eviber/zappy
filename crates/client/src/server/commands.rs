@@ -87,7 +87,7 @@ pub enum Notif {
     Elevating,
     /// The player has died.
     Dead,
-	Kicked(u8),
+    Kicked(u8),
 }
 
 impl Display for Notif {
@@ -104,10 +104,10 @@ impl FromStr for Notif {
     type Err = InvalidMsg;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-		let kick = "deplacement ";
+        let kick = "deplacement ";
 
         match s {
-			s if s.starts_with(kick) => Ok(Notif::Kicked(s[kick.len()..].parse()?)),
+            s if s.starts_with(kick) => Ok(Notif::Kicked(s[kick.len()..].parse()?)),
             "elevation en cours" => Ok(Notif::Elevating),
             "mort" => Ok(Notif::Dead),
             _ => Err(InvalidMsg::ParsingError),
