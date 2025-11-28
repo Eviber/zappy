@@ -298,10 +298,17 @@ fn add_player(
             continue;
         };
         let transform = player_transform_from_pos(msg.x, msg.y, msg.orientation);
+        let main_color = bevy::color::palettes::css::RED;
+        let main_color = Color::srgb(main_color.red, main_color.green, main_color.blue);
+        let main_material = materials.add(main_color);
+
+        let spheres_material = materials.add(Color::srgb(0.1, 0.1, 0.1));
+        let spheres_radius = 0.1;
+
         commands
             .spawn((
-                Mesh3d(meshes.add(Cuboid::new(0.8, 1.5, 0.8).mesh())),
-                MeshMaterial3d(materials.add(Color::srgb(0.8, 0.2, 0.2))),
+                Mesh3d(meshes.add(Capsule3d::new(0.4, 1.2).mesh())),
+                MeshMaterial3d(main_material),
                 transform,
                 Player,
                 Inventory([0; 7]),
@@ -309,6 +316,26 @@ fn add_player(
                 Team(msg.team.clone()),
                 Id(msg.id),
             ))
+            .with_children(|parent| {
+                parent.spawn((
+                    Mesh3d(meshes.add(Sphere::new(spheres_radius).mesh())),
+                    MeshMaterial3d(spheres_material.clone()),
+                    Transform::from_translation(Vec3 {
+                        x: -0.2,
+                        y: 0.3,
+                        z: 0.3,
+                    }),
+                ));
+                parent.spawn((
+                    Mesh3d(meshes.add(Sphere::new(spheres_radius).mesh())),
+                    MeshMaterial3d(spheres_material),
+                    Transform::from_translation(Vec3 {
+                        x: 0.2,
+                        y: 0.3,
+                        z: 0.3,
+                    }),
+                ));
+            })
             .observe(on_player_hover)
             .observe(on_unhover);
         info!("Added player #{}", msg.id);
