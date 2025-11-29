@@ -41,5 +41,7 @@ fn main() -> Result<()> {
     loop {
         server.send_command(Command::Kick)?;
         while let Msg::Notif(_) = server.receive()? {}
+        server.send_command(Command::Inventory)?;
+        while let Msg::Notif(_) = server.receive()? {}
     }
 }

@@ -32,12 +32,15 @@ pub enum Command {
     LayAnEgg,
     /// The `connect_nbr` command.
     AvailableTeamSlots,
+    /// The `death` special command.
+    Death,
 }
 
 impl Command {
     /// Returns the number of ticks that this command takes to execute.
     pub fn ticks(&self) -> u32 {
         match self {
+            Command::Death => unreachable!(),
             Command::MoveForward => 7,
             Command::TurnLeft => 7,
             Command::TurnRight => 7,
@@ -251,6 +254,18 @@ impl Command {
                     .conn
                     .async_write_all(b"ok\n")
                     .await?;
+            }
+            Command::Death => {
+                state.players[player_id]
+                    .conn
+                    .async_write_all(b"mort\n")
+                    .await?;
+                state.leave(player_id);
+            }
+            Command::AvailableTeamSlots => {
+                let player = &state.players[player_id];
+                let result = format!("{}\n", state.available_slots_for(player.team_id()));
+                player.conn.async_write_all(result.as_bytes()).await?;
             }
             _ => {
                 let player = &state.players[player_id];
