@@ -153,9 +153,13 @@ impl PlayerState {
     ///
     /// If the top-level command is ready to run, then it is returned. Otherwise, this function
     /// returns `None`.
-    pub fn try_unqueue_command(&mut self) -> Option<Command> {
+    pub fn tick(&mut self) -> Option<Command> {
         let scheduled_command = self.commands.first_mut()?;
 
+        if self.inventory.time_to_live == 0 {
+            return Some(Command::Death);
+        }
+        self.inventory.time_to_live -= 1;
         if scheduled_command.remaining_ticks > 0 {
             scheduled_command.remaining_ticks -= 1;
             return None;
