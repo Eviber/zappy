@@ -9,4 +9,5 @@ publish.workspace = true
 
 [dependencies]
 bevy = "0.17"
+bevy_hanabi = { version = "0.17", default-features = false, features = ["3d"] }
 clap = { version = "4.5", features = ["derive"] }
