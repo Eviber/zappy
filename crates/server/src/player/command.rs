@@ -47,7 +47,7 @@ impl Command {
             Command::DropObject(_) => 7,
             Command::KnockPlayer => 7,
             Command::Broadcast(_) => 7,
-            Command::Evolve => 300,
+            Command::Evolve(_) => 300,
             Command::LayAnEgg => 42,
             Command::AvailableTeamSlots => 0,
         }
