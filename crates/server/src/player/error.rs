@@ -28,6 +28,8 @@ pub enum PlayerError {
     UnknownObjectClass(Box<[u8]>),
     /// The player tried to send a broadcast message with a newline.
     InvalidBroadcast,
+    /// The player tried to evolve a player with insufficient resources.
+    CantEvolve,
 }
 
 impl fmt::Display for PlayerError {
@@ -62,6 +64,9 @@ impl fmt::Display for PlayerError {
             }
             PlayerError::InvalidBroadcast => {
                 write!(f, "invalid broadcast message")
+            }
+            PlayerError::CantEvolve => {
+                write!(f, "player cannot evolve with insufficient resources")
             }
         }
     }

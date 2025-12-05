@@ -27,7 +27,7 @@ pub enum Command {
     /// The `broadcast` command.
     Broadcast(Box<[u8]>),
     /// The `incantation` command.
-    Evolve,
+    Evolve(Vec<PlayerId>),
     /// The `fork` command.
     LayAnEgg,
     /// The `connect_nbr` command.
@@ -54,7 +54,11 @@ impl Command {
     }
 
     /// Parses the provided byte string.
-    pub fn parse(command: &[u8]) -> Result<Command, PlayerError> {
+    pub fn parse(
+        command: &[u8],
+        player_id: PlayerId,
+        state: &mut State,
+    ) -> Result<Command, PlayerError> {
         let (cmd_name, args) = slice_split_once(command, b' ').unwrap_or((command, b""));
 
         match cmd_name {
@@ -81,7 +85,54 @@ impl Command {
                     Ok(Self::Broadcast(args.into()))
                 }
             }
-            b"incantation" => Ok(Self::Evolve),
+            b"incantation" => {
+                let player = &state.players[player_id];
+                let cell_x = player.x;
+                let cell_y = player.y;
+                let cell_index = cell_y * state.world.width + cell_x;
+                let cell = &state.world.cells[cell_index];
+                let match_level = player.level;
+
+                let players = state
+                    .players
+                    .iter()
+                    .filter(|(_, player)| {
+                        player.x == cell_x && player.y == cell_y && player.level == match_level
+                    })
+                    .map(|(id, _)| id)
+                    .collect::<Vec<_>>();
+
+                let (req_players, req_l, req_d, req_s, req_m, req_p, req_t) = match player.level {
+                    1 => (1, 1, 0, 0, 0, 0, 0),
+                    2 => (2, 1, 1, 1, 0, 0, 0),
+                    3 => (2, 2, 0, 1, 0, 2, 0),
+                    4 => (4, 1, 1, 2, 0, 1, 0),
+                    5 => (4, 1, 2, 1, 3, 0, 0),
+                    6 => (6, 1, 2, 3, 0, 1, 0),
+                    7 => (6, 2, 2, 2, 2, 2, 1),
+                    _ => unreachable!(),
+                };
+
+                if players.len() != req_players
+                    || cell.linemate < req_l
+                    || cell.deraumere < req_d
+                    || cell.sibur < req_s
+                    || cell.mendiane < req_m
+                    || cell.phiras < req_p
+                    || cell.thystame < req_t
+                {
+                    return Err(PlayerError::CantEvolve);
+                }
+
+                state.world.cells[cell_index].linemate -= req_l;
+                state.world.cells[cell_index].deraumere -= req_d;
+                state.world.cells[cell_index].sibur -= req_s;
+                state.world.cells[cell_index].mendiane -= req_m;
+                state.world.cells[cell_index].phiras -= req_p;
+                state.world.cells[cell_index].thystame -= req_t;
+
+                Ok(Self::Evolve(players))
+            }
             b"fork" => Ok(Self::LayAnEgg),
             b"connect_nbr" => Ok(Self::AvailableTeamSlots),
             _ => Err(PlayerError::UnknownCommand(cmd_name.into())),
@@ -330,6 +381,11 @@ impl Command {
                         .await?;
                     player.conn.async_write_all(&text).await?;
                     player.conn.async_write_all(b"\n").await?;
+                }
+            }
+            Command::Evolve(players) => {
+                for player_id in players {
+                    state.players[player_id].level += 1;
                 }
             }
             _ => {
