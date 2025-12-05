@@ -260,7 +260,7 @@ impl Command {
             }
             Command::Broadcast(text) => {
                 // Handled when parsing the command in the first place.
-                assert!(text.contains(&b'\n'));
+                assert!(!text.contains(&b'\n'));
 
                 let source_x = state.players[player_id].x;
                 let source_y = state.players[player_id].y;
