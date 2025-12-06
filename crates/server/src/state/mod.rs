@@ -146,15 +146,17 @@ impl State {
 
         team.available_slots -= 1;
 
-        let player_id = self.players.insert(PlayerState::new_random(
-            client,
-            team_id,
-            &mut self.rng,
-            self.world.width,
-            self.world.height,
-        ));
+		if !self.players.values().any(|p| p.team_id == team_id) {
+        	let player_id = self.players.insert(PlayerState::new_random(
+            	client,
+            	team_id,
+            	&mut self.rng,
+            	self.world.width,
+            	self.world.height,
+        	));
+        	Ok(player_id)
+		}
 
-        Ok(player_id)
     }
 
     /// Removes a player from the server.

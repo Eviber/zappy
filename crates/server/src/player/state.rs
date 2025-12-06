@@ -93,7 +93,7 @@ pub struct PlayerState {
     commands: ArrayVec<ScheduledCommand, 10>,
 
     /// The connection that was open with the player.
-    pub conn: ft::Fd,
+    pub conn: Option<ft::Fd>,
 
     /// The direction in which the player is facing.
     pub facing: PlayerDirection,
@@ -105,6 +105,8 @@ pub struct PlayerState {
     pub inventory: PlayerInventory,
     /// The current level of the player.
     pub level: usize,
+	/// The age of the player.
+	pub age: usize,
 }
 
 impl PlayerState {
@@ -128,7 +130,7 @@ impl PlayerState {
         Self {
             team_id,
             commands: ArrayVec::new(),
-            conn: client.fd(),
+            conn: Some(client.fd()),
             facing: match rng.next_u64() % 4 {
                 0 => PlayerDirection::North,
                 1 => PlayerDirection::East,
@@ -140,8 +142,23 @@ impl PlayerState {
             y: rng.next_u64() as usize % height,
             level: 1,
             inventory: PlayerInventory::new(),
+			age: 600,
         }
     }
+
+	pub fn fork(&self) -> Self {
+		Self {
+			team_id: self.team_id,
+			commands: ArrayVec::new(),
+			conn: None,
+			facing: self.facing,
+			x: self.x,
+			y: self.y,
+			level: 1,
+			inventory: PlayerInventory::new(),
+			age: 0,
+		}
+	}
 
     /// Returns the ID of the team the player is in.
     #[inline]
@@ -155,6 +172,11 @@ impl PlayerState {
     /// returns `None`.
     pub fn tick(&mut self) -> Option<Command> {
         let scheduled_command = self.commands.first_mut()?;
+		
+		if self.age < 600 {
+			return None;
+		}
+		self.age += 1;
 
         if self.inventory.time_to_live == 0 {
             return Some(Command::Death);

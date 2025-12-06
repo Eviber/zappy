@@ -91,19 +91,19 @@ impl Command {
             Command::TurnLeft => {
                 let player = &mut state.players[player_id];
                 player.turn_left();
-                player.conn.async_write_all(b"ok\n").await?;
+                player.conn.unwrap().async_write_all(b"ok\n").await?;
                 broadcast_player_moved(state, player_id).await;
             }
             Command::TurnRight => {
                 let player = &mut state.players[player_id];
                 player.turn_right();
-                player.conn.async_write_all(b"ok\n").await?;
+                player.conn.unwrap().async_write_all(b"ok\n").await?;
                 broadcast_player_moved(state, player_id).await;
             }
             Command::MoveForward => {
                 let player = &mut state.players[player_id];
                 player.advance_position(state.world.width, state.world.height);
-                player.conn.async_write_all(b"ok\n").await?;
+                player.conn.unwrap().async_write_all(b"ok\n").await?;
                 broadcast_player_moved(state, player_id).await;
             }
             Command::Inventory => {
@@ -118,7 +118,7 @@ impl Command {
                     player.inventory.phiras,
                     player.inventory.thystame,
                 );
-                player.conn.async_write_all(result.as_bytes()).await?;
+                player.conn.unwrap().async_write_all(result.as_bytes()).await?;
             }
             Command::PickUpObject(object) => {
                 let player = &mut state.players[player_id];
@@ -128,9 +128,9 @@ impl Command {
                     &mut player.inventory,
                     object,
                 ) {
-                    player.conn.async_write_all(b"ok\n").await?;
+                    player.conn.unwrap().async_write_all(b"ok\n").await?;
                 } else {
-                    player.conn.async_write_all(b"ko\n").await?;
+                    player.conn.unwrap().async_write_all(b"ko\n").await?;
                 }
                 broadcast_inventory_transfer(state, player_id, object).await;
             }
@@ -142,9 +142,9 @@ impl Command {
                     &mut state.world.cells[cell_index],
                     object,
                 ) {
-                    player.conn.async_write_all(b"ok\n").await?;
+                    player.conn.unwrap().async_write_all(b"ok\n").await?;
                 } else {
-                    player.conn.async_write_all(b"ko\n").await?;
+                    player.conn.unwrap().async_write_all(b"ko\n").await?;
                 }
                 broadcast_inventory_transfer(state, player_id, object).await;
             }
@@ -226,7 +226,7 @@ impl Command {
                 result.pop();
                 result.push_str("}\n");
                 ft_log::info!("successfully ended loop {}", result);
-                player.conn.async_write_all(result.as_bytes()).await?;
+                player.conn.unwrap().async_write_all(result.as_bytes()).await?;
                 ft_log::info!("successfully sent message");
             }
             Command::KnockPlayer => {
@@ -245,19 +245,19 @@ impl Command {
                         kickee.x = front_cell.0;
                         kickee.y = front_cell.1;
                         kickee
-                            .conn
+                            .conn.unwrap()
                             .async_write_all(kickee_string.as_bytes())
                             .await?;
                     }
                 }
                 state.players[player_id]
-                    .conn
+                    .conn.unwrap()
                     .async_write_all(b"ok\n")
                     .await?;
             }
             Command::Death => {
                 state.players[player_id]
-                    .conn
+                    .conn.unwrap()
                     .async_write_all(b"mort\n")
                     .await?;
                 state.leave(player_id);
@@ -265,12 +265,16 @@ impl Command {
             Command::AvailableTeamSlots => {
                 let player = &state.players[player_id];
                 let result = format!("{}\n", state.available_slots_for(player.team_id()));
-                player.conn.async_write_all(result.as_bytes()).await?;
+                player.conn.unwrap().async_write_all(result.as_bytes()).await?;
             }
+			Command::LayAnEgg => {
+                let player = &state.players[player_id];
+				state.players.insert(player.fork());
+			}
             _ => {
                 let player = &state.players[player_id];
                 player
-                    .conn
+                    .conn.unwrap()
                     .async_write_all(b"error: not implemented yet\n")
                     .await?;
             }
