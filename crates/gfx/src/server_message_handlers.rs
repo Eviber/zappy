@@ -251,7 +251,7 @@ struct Inventory([u32; 7]);
 struct Team(String);
 
 #[derive(Component)]
-struct Id(u32);
+struct Id(u64);
 
 fn player_transform_from_pos(x: usize, y: usize, orientation: u32) -> Transform {
     let rotation = match orientation {
