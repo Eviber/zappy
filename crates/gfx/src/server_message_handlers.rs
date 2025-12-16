@@ -5,6 +5,8 @@ mod server_communication;
 pub use server_communication::ServerAddress;
 use server_communication::*;
 
+mod dust_cloud;
+
 /// Plugin to handle messages from the server
 pub(crate) struct ServerMessageHandlersPlugin;
 
@@ -12,6 +14,7 @@ impl Plugin for ServerMessageHandlersPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(TileStacks::default());
         app.add_plugins(ServerCommunicationPlugin);
+        app.add_plugins(dust_cloud::DustExplosionPlugin);
         app.add_systems(
             Update,
             (
@@ -512,6 +515,8 @@ fn player_get_item(
 }
 
 fn expulse_player(
+    mut commands: Commands,
+    dust_assets: Res<dust_cloud::DustExplosionAssets>,
     mut reader: MessageReader<ServerMessage>,
     mut query: Query<(&Id, &Transform), With<Player>>,
 ) {
@@ -519,9 +524,9 @@ fn expulse_player(
         let ServerMessage::PlayerExpulsion(msg) = msg else {
             continue;
         };
-        if let Some((_, _transform)) = query.iter_mut().find(|(id, _)| id.0 == msg.0) {
-            // TODO: add expulsion effect here
+        if let Some((_, transform)) = query.iter_mut().find(|(id, _)| id.0 == msg.0) {
             info!("Player #{} has been expelled!", msg.0);
+            dust_cloud::spawn_dust_explosion(&mut commands, &dust_assets, *transform);
         } else {
             warn!("Received expulsion for unknown player #{}", msg.0);
         }
