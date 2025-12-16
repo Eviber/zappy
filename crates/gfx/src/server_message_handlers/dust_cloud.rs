@@ -10,8 +10,7 @@ impl Plugin for DustExplosionPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(HanabiPlugin)
             .init_resource::<DustExplosionAssets>()
-            .add_systems(Startup, setup_dust_explosion_assets)
-            .add_systems(Update, trigger_explosions_on_spacebar);
+            .add_systems(Startup, setup_dust_explosion_assets);
     }
 }
 
@@ -85,15 +84,4 @@ pub fn spawn_dust_explosion(
     transform: Transform,
 ) {
     commands.spawn((ParticleEffect::new(assets.effect.clone()), transform));
-}
-
-fn trigger_explosions_on_spacebar(
-    mut commands: Commands,
-    keyboard: Res<ButtonInput<KeyCode>>,
-    assets: Res<DustExplosionAssets>,
-) {
-    if keyboard.just_pressed(KeyCode::Space) {
-        // Spawn an explosion at y=1.0 with default settings
-        spawn_dust_explosion(&mut commands, &assets, Transform::from_xyz(0.0, 1.0, 0.0));
-    }
 }
