@@ -26,6 +26,8 @@ pub enum PlayerError {
     UnknownCommand(Box<[u8]>),
     /// The player sent an unknown object class.
     UnknownObjectClass(Box<[u8]>),
+    /// The player tried to send a broadcast message with a newline.
+    InvalidBroadcast,
 }
 
 impl fmt::Display for PlayerError {
@@ -57,6 +59,9 @@ impl fmt::Display for PlayerError {
                         .unwrap_or("<invalid UTF-8>")
                         .escape_debug()
                 )
+            }
+            PlayerError::InvalidBroadcast => {
+                write!(f, "invalid broadcast message")
             }
         }
     }
