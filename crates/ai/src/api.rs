@@ -481,6 +481,7 @@ impl ZappyClient {
     }
 
     /// Requests the server to pick us up an item.
+    #[doc(alias = "prend")]
     pub async fn pickup_item(&mut self, item_name: ItemType) -> anyhow::Result<()> {
         self.pending_request_sender
             .send(RequestType::Pickup)
@@ -492,6 +493,7 @@ impl ZappyClient {
     }
 
     /// Requests the server to drop an item on the ground.
+    #[doc(alias = "pose")]
     pub async fn drop_item(&mut self, item_name: ItemType) -> anyhow::Result<()> {
         self.pending_request_sender.send(RequestType::Drop).await?;
         self.writer.write_all(b"pose ").await?;
@@ -501,6 +503,7 @@ impl ZappyClient {
     }
 
     /// Requests the server to kick the player in front of us.
+    #[doc(alias = "expulse")]
     pub async fn kick(&mut self) -> anyhow::Result<()> {
         self.pending_request_sender.send(RequestType::Kick).await?;
         self.writer.write_all(b"expulse\n").await?;
@@ -536,6 +539,7 @@ impl ZappyClient {
     }
 
     /// Requests the server to refresh the number of remaining team slots.
+    #[doc(alias = "connect_nbr")]
     pub async fn refresh_available_team_slots(&mut self) -> anyhow::Result<()> {
         self.pending_request_sender
             .send(RequestType::AvailableTeamSlots)

@@ -18,7 +18,7 @@ struct Args {
     #[clap(short = 'n')]
     team: String,
     /// Print help
-    #[clap(short = '?', long = "help", action = clap::ArgAction::HelpLong)]
+    #[clap(short = '?', action = clap::ArgAction::HelpLong)]
     help: (),
 }
 
