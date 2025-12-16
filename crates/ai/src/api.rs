@@ -4,7 +4,7 @@ use {
     anyhow::Context,
     parking_lot::{Mutex, RwLock},
     std::{
-        ops::{Add, Deref},
+        ops::{Add, Deref, DerefMut},
         str::FromStr,
         sync::{
             Arc,
@@ -169,16 +169,21 @@ impl PlayerDirection {
         }
     }
 
+    /// Rotates the provided vector by the direction.
+    pub fn rotate_vector(self, v: (i32, i32)) -> (i32, i32) {
+        match self {
+            PlayerDirection::Front => (v.0, v.1),
+            PlayerDirection::Back => (-v.0, -v.1),
+            PlayerDirection::Right => (v.1, -v.0),
+            PlayerDirection::Left => (-v.1, v.0),
+        }
+    }
+
     /// Returns a vector in the direction.
     ///
     /// `front` is positive X.
     pub fn to_vector(self) -> (i32, i32) {
-        match self {
-            PlayerDirection::Front => (1, 0),
-            PlayerDirection::Back => (-1, 0),
-            PlayerDirection::Right => (0, 1),
-            PlayerDirection::Left => (0, -1),
-        }
+        self.rotate_vector((1, 0))
     }
 }
 
@@ -219,6 +224,11 @@ pub struct GameState {
     ///
     /// The origin of the world is specified as our own initial position and orientation.
     /// The initial orientation is in the positive X direction.
+    ///
+    /// The size of this world does not depend on the real world's width and height. Instead, it's
+    /// a square of the world's largest side. This does mean that some of the cells may be
+    /// stored multiple times in multiple states, but this is unavoidable given the nature of the
+    /// information we receive from the server.
     pub world_contents: Box<[CellContent]>,
 
     /// The position of the player, relative to the player's initial position.
@@ -230,9 +240,9 @@ pub struct GameState {
 impl GameState {
     /// Initializes a new [`GameState`] instance from the provided handshake.
     fn from_handshake(handshake: &Handshake) -> Self {
-        let cell_count = handshake.width as usize * handshake.height as usize;
+        let max_side = handshake.width.max(handshake.height);
         let world_contents = std::iter::repeat_with(CellContent::default)
-            .take(cell_count)
+            .take(max_side as usize * max_side as usize)
             .collect();
 
         Self {
@@ -252,6 +262,36 @@ impl GameState {
             player_position_y: 0,
             world_contents,
         }
+    }
+
+    /// Gets a mutable reference to a cell.
+    pub fn get_cell_mut(&mut self, x: i32, y: i32) -> &mut CellContent {
+        let max_side = self.width.max(self.height) as usize;
+        let wrapped_x = x.rem_euclid(max_side as i32) as usize;
+        let wrapped_y = y.rem_euclid(max_side as i32) as usize;
+        &mut self.world_contents[wrapped_x + wrapped_y * max_side]
+    }
+
+    /// Gets a reference to a cell.
+    pub fn get_cell(&self, x: i32, y: i32) -> &CellContent {
+        let max_side = self.width.max(self.height) as usize;
+        let wrapped_x = x.rem_euclid(max_side as i32) as usize;
+        let wrapped_y = y.rem_euclid(max_side as i32) as usize;
+        &self.world_contents[wrapped_x + wrapped_y * max_side]
+    }
+
+    /// Gets a mutable reference to a cell, relative to the current player's position
+    /// and direction.
+    pub fn get_cell_relative_mut(&mut self, mut dx: i32, mut dy: i32) -> &mut CellContent {
+        (dx, dy) = self.player_direction.rotate_vector((dx, dy));
+        self.get_cell_mut(self.player_position_x + dx, self.player_position_y + dy)
+    }
+
+    /// Gets a reference to a cell, relative to the current player's position
+    /// and direction.
+    pub fn get_cell_relative(&self, dx: i32, dy: i32) -> &CellContent {
+        let (dx, dy) = self.player_direction.rotate_vector((dx, dy));
+        self.get_cell(self.player_position_x + dx, self.player_position_y + dy)
     }
 }
 
@@ -365,12 +405,31 @@ impl ZappyClient {
 
     /// Returns a reference to the current game state.
     ///
-    /// # Remarks
-    ///
     /// The result of this method is a read guard to the game state. No `.await` point should
     /// exist within the scope of the returned guard.
+    ///
+    /// # Remarks
+    ///
+    /// This function returns a read guard which locks the game state for the whole process. Try
+    /// to keep the scope of the returned guard as short as possible to avoid blocking other
+    /// threads.
     pub fn game_state(&self) -> impl Deref<Target = GameState> {
         self.state.game_state.read()
+    }
+
+    /// Returns a mutable reference to the current game state.
+    ///
+    /// The game state is normally updated automatically based on the responses received
+    /// from the server. However, it is still possible to update the game state manually
+    /// with this method.
+    ///
+    /// # Remarks
+    ///
+    /// This function returns a write guard which locks the game state for the whole process. Try
+    /// to keep the scope of the returned guard as short as possible to avoid blocking other
+    /// threads.
+    pub fn game_state_mut(&self) -> impl DerefMut<Target = GameState> {
+        self.state.game_state.write()
     }
 
     /// Requests the server to advance by one square.
@@ -665,6 +724,29 @@ async fn try_run_reader_task_iteration(
     }
 
     //
+    // If the message starts with `displacement`, then we have been moved around.
+    //
+
+    if let Some(direction) = buffer.strip_prefix(b"displacement") {
+        let mut game_state = state.game_state.write();
+
+        let mut dir = match direction.trim_ascii() {
+            b"1" => (1, 0),
+            b"3" => (0, 1),
+            b"5" => (-1, 0),
+            b"7" => (0, -1),
+            _ => anyhow::bail!(
+                "Invalid direction received for `displacement`: \"{}\"",
+                direction.escape_ascii(),
+            ),
+        };
+
+        dir = game_state.player_direction.rotate_vector(dir);
+        game_state.player_position_x += dir.0;
+        game_state.player_position_y += dir.1;
+    }
+
+    //
     // Otherwise, the message must be a response to some request we made.
     //
 
@@ -741,20 +823,31 @@ async fn try_run_reader_task_iteration(
                 game_state.player_level as usize * game_state.player_level as usize;
             let mut actual_iterator_size = 0;
 
+            let mut dy = 0;
+            let mut dx = 0;
+            let mut amplitude = 1;
             for cell in buffer
                 .split(|&c| c == b',')
                 .map(|s| str::from_utf8(s)?.parse::<CellContent>())
             {
-                let cell = cell.context("Failed to parse cell content")?;
-                // TODO: Update the known state of the board.
+                *game_state.get_cell_mut(dx, dy) = cell.context("Failed to parse cell content")?;
+
+                dx += 1;
+                if dx == amplitude {
+                    amplitude += 1;
+                    dx = -amplitude + 1;
+                    dy += 1;
+                }
+
+                actual_iterator_size += 1;
             }
 
-            anyhow::ensure!(
-                actual_iterator_size == expected_iterator_size,
-                "Expected {} cells for the current level, got {}",
-                expected_iterator_size,
-                actual_iterator_size,
-            );
+            if actual_iterator_size != expected_iterator_size {
+                eprintln!(
+                    "warning: Expected {} cells for the current level, got {}",
+                    expected_iterator_size, actual_iterator_size,
+                );
+            }
         }
         RequestType::Inventory => {
             anyhow::ensure!(

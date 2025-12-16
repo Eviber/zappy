@@ -48,24 +48,11 @@ pub async fn main() -> anyhow::Result<()> {
         .await
         .context("Failed to create Zappy client")?;
 
-    {
-        let game_state = client.game_state();
-        println!(
-            "\
-            Connected to the server!\n\
-            * World width: {world_width}\n\
-            * World height: {world_height}\n\
-            * Team slots: {team_slots}\n\
-            ",
-            world_width = game_state.width,
-            world_height = game_state.height,
-            team_slots = game_state.available_team_slots
-        );
-    }
-
     //
     // Start the main loop.
     //
+
+    // TODO: Implement the actual logic of the AI here.
 
     Ok(())
 }
