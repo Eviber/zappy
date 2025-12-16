@@ -4,7 +4,6 @@ use {
     anyhow::Context,
     parking_lot::{Mutex, RwLock},
     std::{
-        collections::VecDeque,
         ops::{Add, Deref},
         str::FromStr,
         sync::{
@@ -29,14 +28,14 @@ pub const MAX_PENDING_COMMANDS: usize = 10;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BroadcastDirection {
     Center,
-    North,
-    NorthWest,
-    West,
-    SouthWest,
-    South,
-    SouthEast,
-    East,
-    NorthEast,
+    Front,
+    FrontLeft,
+    FrontRight,
+    BackLeft,
+    BackRight,
+    Left,
+    Right,
+    Back,
 }
 
 /// Describes the content of a cell.
@@ -117,7 +116,7 @@ impl ItemType {
     /// Returns the name of the item type.
     pub const fn name(self) -> &'static str {
         match self {
-            ItemType::Food => "food",
+            ItemType::Food => "nourriture",
             ItemType::Linemate => "linemate",
             ItemType::Deraumere => "deraumere",
             ItemType::Sibur => "sibur",
@@ -140,6 +139,49 @@ pub enum Event {
     },
 }
 
+/// A direction a player can face.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PlayerDirection {
+    Front,
+    Back,
+    Right,
+    Left,
+}
+
+impl PlayerDirection {
+    /// Returns the direction rotated to the left.
+    pub fn rotated_left(self) -> Self {
+        match self {
+            PlayerDirection::Front => PlayerDirection::Left,
+            PlayerDirection::Back => PlayerDirection::Right,
+            PlayerDirection::Right => PlayerDirection::Back,
+            PlayerDirection::Left => PlayerDirection::Front,
+        }
+    }
+
+    /// Returns the direction rotated to the right.
+    pub fn rotated_right(self) -> Self {
+        match self {
+            PlayerDirection::Front => PlayerDirection::Right,
+            PlayerDirection::Back => PlayerDirection::Left,
+            PlayerDirection::Right => PlayerDirection::Front,
+            PlayerDirection::Left => PlayerDirection::Back,
+        }
+    }
+
+    /// Returns a vector in the direction.
+    ///
+    /// `front` is positive X.
+    pub fn to_vector(self) -> (i32, i32) {
+        match self {
+            PlayerDirection::Front => (1, 0),
+            PlayerDirection::Back => (-1, 0),
+            PlayerDirection::Right => (0, 1),
+            PlayerDirection::Left => (0, -1),
+        }
+    }
+}
+
 /// Returns the current state of the game.
 #[derive(Debug, Clone)]
 pub struct GameState {
@@ -152,6 +194,65 @@ pub struct GameState {
 
     /// The current level of the player.
     pub player_level: u32,
+
+    /// The number of food items we have.
+    pub food_count: u32,
+    /// The number of linemates we have.
+    pub linemate_count: u32,
+    /// The number of deraumeres we have.
+    pub deraumere_count: u32,
+    /// The number of sibur we have.
+    pub sibur_count: u32,
+    /// The number of mendeianes we have.
+    pub mendiane_count: u32,
+    /// The number of phiras we have.
+    pub phiras_count: u32,
+    /// The number of thystame we have.
+    pub thystame_count: u32,
+
+    /// The current direction of the player, relative to the player's initial direction.
+    pub player_direction: PlayerDirection,
+
+    /// The content of the world.
+    ///
+    /// # Remarks
+    ///
+    /// The origin of the world is specified as our own initial position and orientation.
+    /// The initial orientation is in the positive X direction.
+    pub world_contents: Box<[CellContent]>,
+
+    /// The position of the player, relative to the player's initial position.
+    pub player_position_x: i32,
+    /// The position of the player, relative to the player's initial position.
+    pub player_position_y: i32,
+}
+
+impl GameState {
+    /// Initializes a new [`GameState`] instance from the provided handshake.
+    fn from_handshake(handshake: &Handshake) -> Self {
+        let cell_count = handshake.width as usize * handshake.height as usize;
+        let world_contents = std::iter::repeat_with(CellContent::default)
+            .take(cell_count)
+            .collect();
+
+        Self {
+            width: handshake.width,
+            height: handshake.height,
+            available_team_slots: handshake.available_team_slots,
+            player_level: 1,
+            food_count: 0,
+            linemate_count: 0,
+            deraumere_count: 0,
+            sibur_count: 0,
+            mendiane_count: 0,
+            phiras_count: 0,
+            thystame_count: 0,
+            player_direction: PlayerDirection::Front,
+            player_position_x: 0,
+            player_position_y: 0,
+            world_contents,
+        }
+    }
 }
 
 /// The type of a request. This is used to interpret responses sent by the server.
@@ -188,7 +289,6 @@ struct SharedState {
     pub unhandled_events: Mutex<Vec<Event>>,
     /// The current state of the game.
     pub game_state: RwLock<GameState>,
-
     /// A boolean indicating that the client has been dropped and that the reader task should
     /// terminate.
     pub is_dropped: AtomicBool,
@@ -197,7 +297,7 @@ struct SharedState {
 /// Contains the state to interact with a Zappy server.
 pub struct ZappyClient {
     /// The list of requests that were sent to the server currently expecting a response.
-    pending_requests: tokio::sync::mpsc::Sender<RequestType>,
+    pending_request_sender: tokio::sync::mpsc::Sender<RequestType>,
 
     /// The open connection to the server.
     writer: OwnedWriteHalf,
@@ -231,21 +331,24 @@ impl ZappyClient {
         //
         let state = Arc::new(SharedState {
             unhandled_events: Mutex::new(Vec::new()),
-            game_state: RwLock::new(GameState {
-                width: handshake.width,
-                height: handshake.height,
-                available_team_slots: handshake.available_team_slots,
-                player_level: 1,
-            }),
+            game_state: RwLock::new(GameState::from_handshake(&handshake)),
             is_dropped: AtomicBool::new(false),
         });
+
+        let (pending_request_sender, pending_request_receiver) =
+            tokio::sync::mpsc::channel(MAX_PENDING_COMMANDS);
 
         //
         // Spawn the child task for the reader half.
         //
-        tokio::spawn(run_reader_task(reader, state.clone()));
+        tokio::spawn(run_reader_task(
+            reader,
+            state.clone(),
+            pending_request_receiver,
+        ));
 
         Ok(Self {
+            pending_request_sender,
             writer,
             state,
             local_unhandled_events: Vec::new(),
@@ -256,7 +359,7 @@ impl ZappyClient {
     /// call to this method.
     pub fn poll_unhandled_events(&mut self) -> impl Iterator<Item = Event> {
         self.local_unhandled_events
-            .append(&mut self.state.write().unhandled_events);
+            .append(&mut self.state.unhandled_events.lock());
         self.local_unhandled_events.drain(..)
     }
 
@@ -273,7 +376,9 @@ impl ZappyClient {
     /// Requests the server to advance by one square.
     #[doc(alias = "avancer")]
     pub async fn move_forward(&mut self) -> anyhow::Result<()> {
-        self.pending_requests.send(RequestType::MoveForward).await?;
+        self.pending_request_sender
+            .send(RequestType::MoveForward)
+            .await?;
         self.writer.write_all(b"avance\n").await?;
         Ok(())
     }
@@ -281,7 +386,9 @@ impl ZappyClient {
     /// Requests the server to turn right.
     #[doc(alias = "droite")]
     pub async fn turn_right(&mut self) -> anyhow::Result<()> {
-        self.pending_requests.send(RequestType::TurnRight).await?;
+        self.pending_request_sender
+            .send(RequestType::TurnRight)
+            .await?;
         self.writer.write_all(b"droite\n").await?;
         Ok(())
     }
@@ -289,7 +396,9 @@ impl ZappyClient {
     /// Requests the server to turn left.
     #[doc(alias = "gauche")]
     pub async fn turn_left(&mut self) -> anyhow::Result<()> {
-        self.pending_requests.send(RequestType::TurnLeft).await?;
+        self.pending_request_sender
+            .send(RequestType::TurnLeft)
+            .await?;
         self.writer.write_all(b"gauche\n").await?;
         Ok(())
     }
@@ -297,7 +406,7 @@ impl ZappyClient {
     /// Requests the server to send the surroundings of the player.
     #[doc(alias = "voir")]
     pub async fn see(&mut self) -> anyhow::Result<()> {
-        self.pending_requests.send(RequestType::See).await?;
+        self.pending_request_sender.send(RequestType::See).await?;
         self.writer.write_all(b"voir\n").await?;
         Ok(())
     }
@@ -305,14 +414,18 @@ impl ZappyClient {
     /// Requests the server to send the inventory of the player.
     #[doc(alias = "inventaire")]
     pub async fn refresh_inventory(&mut self) -> anyhow::Result<()> {
-        self.pending_requests.send(RequestType::Inventory).await?;
+        self.pending_request_sender
+            .send(RequestType::Inventory)
+            .await?;
         self.writer.write_all(b"inventaire\n").await?;
         Ok(())
     }
 
     /// Requests the server to pick us up an item.
     pub async fn pickup_item(&mut self, item_name: ItemType) -> anyhow::Result<()> {
-        self.pending_requests.send(RequestType::Pickup).await?;
+        self.pending_request_sender
+            .send(RequestType::Pickup)
+            .await?;
         self.writer.write_all(b"prend ").await?;
         self.writer.write_all(item_name.name().as_bytes()).await?;
         self.writer.write_all(b"\n").await?;
@@ -321,7 +434,7 @@ impl ZappyClient {
 
     /// Requests the server to drop an item on the ground.
     pub async fn drop_item(&mut self, item_name: ItemType) -> anyhow::Result<()> {
-        self.pending_requests.send(RequestType::Drop).await?;
+        self.pending_request_sender.send(RequestType::Drop).await?;
         self.writer.write_all(b"pose ").await?;
         self.writer.write_all(item_name.name().as_bytes()).await?;
         self.writer.write_all(b"\n").await?;
@@ -330,7 +443,7 @@ impl ZappyClient {
 
     /// Requests the server to kick the player in front of us.
     pub async fn kick(&mut self) -> anyhow::Result<()> {
-        self.pending_requests.send(RequestType::Kick).await?;
+        self.pending_request_sender.send(RequestType::Kick).await?;
         self.writer.write_all(b"expulse\n").await?;
         Ok(())
     }
@@ -338,7 +451,9 @@ impl ZappyClient {
     /// Requests the server to broadcast the provided message to everyone.
     pub async fn broadcast(&mut self, message: &[u8]) -> anyhow::Result<()> {
         debug_assert!(!message.contains(&b'\n'));
-        self.pending_requests.send(RequestType::Broadcast).await?;
+        self.pending_request_sender
+            .send(RequestType::Broadcast)
+            .await?;
         self.writer.write_all(b"broadcast ").await?;
         self.writer.write_all(message).await?;
         self.writer.write_all(b"\n").await?;
@@ -347,21 +462,23 @@ impl ZappyClient {
 
     /// Requests the server to start the leveling up process.
     pub async fn incantation(&mut self) -> anyhow::Result<()> {
-        self.pending_requests.send(RequestType::Incantation).await?;
+        self.pending_request_sender
+            .send(RequestType::Incantation)
+            .await?;
         self.writer.write_all(b"incantation\n").await?;
         Ok(())
     }
 
     /// Requests the server to fork
     pub async fn fork(&mut self) -> anyhow::Result<()> {
-        self.pending_requests.send(RequestType::Fork).await?;
+        self.pending_request_sender.send(RequestType::Fork).await?;
         self.writer.write_all(b"fork\n").await?;
         Ok(())
     }
 
     /// Requests the server to refresh the number of remaining team slots.
     pub async fn refresh_available_team_slots(&mut self) -> anyhow::Result<()> {
-        self.pending_requests
+        self.pending_request_sender
             .send(RequestType::AvailableTeamSlots)
             .await?;
         self.writer.write_all(b"connect_nbr\n").await?;
@@ -457,12 +574,23 @@ async fn perform_handshake(
 }
 
 /// The task responsible for running the reader half of the stream.
-async fn run_reader_task(reader: OwnedReadHalf, state: Arc<SharedState>) {
+async fn run_reader_task(
+    reader: OwnedReadHalf,
+    state: Arc<SharedState>,
+    mut pending_request_receiver: tokio::sync::mpsc::Receiver<RequestType>,
+) {
     let mut buffer = Vec::new();
     let mut reader = BufReader::new(reader);
 
     while !state.is_dropped.load(Ordering::Relaxed) {
-        if let Err(err) = try_run_reader_task_iteration(&mut buffer, &mut reader, &state).await {
+        if let Err(err) = try_run_reader_task_iteration(
+            &mut buffer,
+            &mut reader,
+            &state,
+            &mut pending_request_receiver,
+        )
+        .await
+        {
             eprintln!("Error: {err}");
         }
     }
@@ -472,7 +600,8 @@ async fn run_reader_task(reader: OwnedReadHalf, state: Arc<SharedState>) {
 async fn try_run_reader_task_iteration(
     buffer: &mut Vec<u8>,
     reader: &mut BufReader<OwnedReadHalf>,
-    state: &RwLock<SharedState>,
+    state: &SharedState,
+    pending_request_receiver: &mut tokio::sync::mpsc::Receiver<RequestType>,
 ) -> anyhow::Result<()> {
     buffer.clear();
     reader.read_until(b'\n', buffer).await?;
@@ -500,14 +629,14 @@ async fn try_run_reader_task_iteration(
 
         let direction = match broadcast_payload[0] {
             b'0' => BroadcastDirection::Center,
-            b'1' => BroadcastDirection::East,
-            b'2' => BroadcastDirection::NorthEast,
-            b'3' => BroadcastDirection::North,
-            b'4' => BroadcastDirection::NorthWest,
-            b'5' => BroadcastDirection::West,
-            b'6' => BroadcastDirection::SouthWest,
-            b'7' => BroadcastDirection::South,
-            b'8' => BroadcastDirection::SouthEast,
+            b'1' => BroadcastDirection::Right,
+            b'2' => BroadcastDirection::FrontRight,
+            b'3' => BroadcastDirection::Front,
+            b'4' => BroadcastDirection::FrontLeft,
+            b'5' => BroadcastDirection::Left,
+            b'6' => BroadcastDirection::BackLeft,
+            b'7' => BroadcastDirection::Back,
+            b'8' => BroadcastDirection::BackRight,
             _ => anyhow::bail!(
                 "Invalid broadcast direction: {}",
                 broadcast_payload[0].escape_ascii(),
@@ -517,8 +646,8 @@ async fn try_run_reader_task_iteration(
         let content: Box<[u8]> = Box::from(&broadcast_payload[comma + 1..]);
 
         state
-            .write()
             .unhandled_events
+            .lock()
             .push(Event::BroadcastMessage { direction, content });
 
         return Ok(());
@@ -539,16 +668,12 @@ async fn try_run_reader_task_iteration(
     // Otherwise, the message must be a response to some request we made.
     //
 
-    let matched_request = state
-        .write()
-        .pending_requests
-        .pop_front()
-        .with_context(|| {
-            format!(
-                "No pending request found to match with message: \"{}\"",
-                buffer.escape_ascii(),
-            )
-        })?;
+    let matched_request = pending_request_receiver.try_recv().with_context(|| {
+        format!(
+            "No pending request found to match with message: \"{}\"",
+            buffer.escape_ascii(),
+        )
+    })?;
 
     match matched_request {
         RequestType::MoveForward => {
@@ -557,6 +682,13 @@ async fn try_run_reader_task_iteration(
                 "Expected `ok` as a response to `avance`, got \"{}\"",
                 buffer.escape_ascii()
             );
+
+            {
+                let mut game_state = state.game_state.write();
+                let (dx, dy) = game_state.player_direction.to_vector();
+                game_state.player_position_x += dx;
+                game_state.player_position_y += dy;
+            }
         }
         RequestType::TurnLeft => {
             anyhow::ensure!(
@@ -564,6 +696,11 @@ async fn try_run_reader_task_iteration(
                 "Expected `ok` as a response to `gauche`, got \"{}\"",
                 buffer.escape_ascii()
             );
+
+            {
+                let mut game_state = state.game_state.write();
+                game_state.player_direction = game_state.player_direction.rotated_left();
+            }
         }
         RequestType::TurnRight => {
             anyhow::ensure!(
@@ -571,6 +708,11 @@ async fn try_run_reader_task_iteration(
                 "Expected `ok` as a response to `droite`, got \"{}\"",
                 buffer.escape_ascii()
             );
+
+            {
+                let mut game_state = state.game_state.write();
+                game_state.player_direction = game_state.player_direction.rotated_right();
+            }
         }
         RequestType::See => {
             anyhow::ensure!(
@@ -593,10 +735,10 @@ async fn try_run_reader_task_iteration(
 
             buffer = &buffer[1..buffer.len() - 1];
 
-            let mut state = state.write();
+            let mut game_state = state.game_state.write();
 
             let expected_iterator_size =
-                state.game_state.player_level as usize * state.game_state.player_level as usize;
+                game_state.player_level as usize * game_state.player_level as usize;
             let mut actual_iterator_size = 0;
 
             for cell in buffer
@@ -618,28 +760,37 @@ async fn try_run_reader_task_iteration(
             anyhow::ensure!(
                 buffer.len() >= 3,
                 "Invalid response to `inventaire`: \"{}\"",
-                buffer.escape_ascii()
+                buffer.escape_ascii(),
             );
 
             anyhow::ensure!(
                 buffer.starts_with(b"{"),
                 "Expected '{{' as the first character of the response to `inventaire`, got \"{}\"",
-                buffer[0].escape_ascii()
+                buffer[0].escape_ascii(),
             );
 
             anyhow::ensure!(
                 buffer.ends_with(b"}"),
                 "Expected '}}' as the last character of the response to `inventaire`, got \"{}\"",
-                buffer[buffer.len() - 1].escape_ascii()
+                buffer[buffer.len() - 1].escape_ascii(),
             );
 
             buffer = &buffer[1..buffer.len() - 1];
 
-            let mut state = state.write();
-
+            let mut game_state = state.game_state.write();
             for slot in buffer.split(|&c| c == b',').map(parse_inventory_slot) {
                 let (name, count) = slot.context("Can't parse inventory slot")?;
-                // TODO: Update inventory state.
+
+                match name {
+                    b"food" => game_state.food_count += count,
+                    b"linemate" => game_state.linemate_count += count,
+                    b"deraumere" => game_state.deraumere_count += count,
+                    b"sibur" => game_state.sibur_count += count,
+                    b"mendiane" => game_state.mendiane_count += count,
+                    b"phiras" => game_state.phiras_count += count,
+                    b"thystame" => game_state.thystame_count += count,
+                    _ => anyhow::bail!("Unknown inventory item type: {}", name.escape_ascii()),
+                }
             }
         }
         RequestType::Pickup => match buffer {
@@ -683,16 +834,16 @@ async fn try_run_reader_task_iteration(
                 .and_then(|x| x.parse().map_err(anyhow::Error::from))
                 .context("Failed to parse new player level")?;
 
-            let mut state = state.write();
+            let mut game_state = state.game_state.write();
 
             anyhow::ensure!(
-                new_level == state.game_state.player_level + 1,
+                new_level == game_state.player_level + 1,
                 "Expected new level to be {}, got {}",
-                state.game_state.player_level + 1,
+                game_state.player_level + 1,
                 new_level
             );
 
-            state.game_state.player_level = new_level;
+            game_state.player_level = new_level;
         }
         RequestType::Fork => {
             anyhow::ensure!(
@@ -706,7 +857,7 @@ async fn try_run_reader_task_iteration(
                 .map_err(anyhow::Error::from)
                 .and_then(|x| x.parse().map_err(anyhow::Error::from))
                 .context("Failed to parse available team slots")?;
-            state.write().game_state.available_team_slots = team_slots;
+            state.game_state.write().available_team_slots = team_slots;
         }
     }
 
