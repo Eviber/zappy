@@ -331,10 +331,19 @@ impl Command {
                     player.conn.async_write_all(&text).await?;
                     player.conn.async_write_all(b"\n").await?;
                 }
+
                 state.players[player_id]
                     .conn
                     .async_write_all(b"ok\n")
                     .await?;
+
+                {
+                    let mut gfx_message: Vec<u8> = format!("pbc #{}", player_id).into();
+                    gfx_message.push(b' ');
+                    gfx_message.extend_from_slice(&text);
+                    gfx_message.push(b'\n');
+                    state.broadcast_to_graphics_monitors(&gfx_message).await;
+                }
             }
             _ => {
                 let player = &state.players[player_id];
