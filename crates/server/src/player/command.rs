@@ -27,7 +27,7 @@ pub enum Command {
     /// The `broadcast` command.
     Broadcast(Box<[u8]>),
     /// The `incantation` command.
-    Evolve,
+    Evolve(Vec<PlayerId>),
     /// The `fork` command.
     LayAnEgg,
     /// The `connect_nbr` command.
@@ -47,14 +47,18 @@ impl Command {
             Command::DropObject(_) => 7,
             Command::KnockPlayer => 7,
             Command::Broadcast(_) => 7,
-            Command::Evolve => 300,
+            Command::Evolve(_) => 300,
             Command::LayAnEgg => 42,
             Command::AvailableTeamSlots => 0,
         }
     }
 
     /// Parses the provided byte string.
-    pub fn parse(command: &[u8]) -> Result<Command, PlayerError> {
+    pub fn parse(
+        command: &[u8],
+        player_id: PlayerId,
+        state: &mut State,
+    ) -> Result<Command, PlayerError> {
         let (cmd_name, args) = slice_split_once(command, b' ').unwrap_or((command, b""));
 
         match cmd_name {
@@ -74,8 +78,61 @@ impl Command {
                 Ok(Self::DropObject(object))
             }
             b"expulse" => Ok(Self::KnockPlayer),
-            b"broadcast" => Ok(Self::Broadcast(args.into())),
-            b"incantation" => Ok(Self::Evolve),
+            b"broadcast" => {
+                if args.contains(&b'\n') {
+                    Err(PlayerError::InvalidBroadcast)
+                } else {
+                    Ok(Self::Broadcast(args.into()))
+                }
+            }
+            b"incantation" => {
+                let player = &state.players[player_id];
+                let cell_x = player.x;
+                let cell_y = player.y;
+                let cell_index = cell_y * state.world.width + cell_x;
+                let cell = &state.world.cells[cell_index];
+                let match_level = player.level;
+
+                let players = state
+                    .players
+                    .iter()
+                    .filter(|(_, player)| {
+                        player.x == cell_x && player.y == cell_y && player.level == match_level
+                    })
+                    .map(|(id, _)| id)
+                    .collect::<Vec<_>>();
+
+                let (req_players, req_l, req_d, req_s, req_m, req_p, req_t) = match player.level {
+                    1 => (1, 1, 0, 0, 0, 0, 0),
+                    2 => (2, 1, 1, 1, 0, 0, 0),
+                    3 => (2, 2, 0, 1, 0, 2, 0),
+                    4 => (4, 1, 1, 2, 0, 1, 0),
+                    5 => (4, 1, 2, 1, 3, 0, 0),
+                    6 => (6, 1, 2, 3, 0, 1, 0),
+                    7 => (6, 2, 2, 2, 2, 2, 1),
+                    _ => unreachable!(),
+                };
+
+                if players.len() != req_players
+                    || cell.linemate < req_l
+                    || cell.deraumere < req_d
+                    || cell.sibur < req_s
+                    || cell.mendiane < req_m
+                    || cell.phiras < req_p
+                    || cell.thystame < req_t
+                {
+                    return Err(PlayerError::CantEvolve);
+                }
+
+                state.world.cells[cell_index].linemate -= req_l;
+                state.world.cells[cell_index].deraumere -= req_d;
+                state.world.cells[cell_index].sibur -= req_s;
+                state.world.cells[cell_index].mendiane -= req_m;
+                state.world.cells[cell_index].phiras -= req_p;
+                state.world.cells[cell_index].thystame -= req_t;
+
+                Ok(Self::Evolve(players))
+            }
             b"fork" => Ok(Self::LayAnEgg),
             b"connect_nbr" => Ok(Self::AvailableTeamSlots),
             _ => Err(PlayerError::UnknownCommand(cmd_name.into())),
@@ -184,8 +241,8 @@ impl Command {
                 }
                 ft_log::info!("len is {}", sight.len());
                 let mut result = String::from("{");
-                for i in 0..sight.len() {
-                    match sight[i] {
+                for s in &sight {
+                    match s {
                         Some(cell) => {
                             for _ in 0..cell.food {
                                 result.push_str("nourriture ");
@@ -251,6 +308,85 @@ impl Command {
                     .conn
                     .async_write_all(b"ok\n")
                     .await?;
+            }
+            Command::Broadcast(text) => {
+                // Handled when parsing the command in the first place.
+                assert!(!text.contains(&b'\n'));
+
+                let source_x = state.players[player_id].x;
+                let source_y = state.players[player_id].y;
+
+                let world_width = state.world.width;
+                let world_height = state.world.height;
+
+                for (other_player_id, player) in &state.players {
+                    if other_player_id == player_id {
+                        continue;
+                    }
+
+                    let other_x = state.players[other_player_id].x;
+                    let other_y = state.players[other_player_id].y;
+
+                    // Calculate the shortest distance considering world wrapping in both
+                    // dimensions.
+
+                    fn shortest_wrapped_distance(
+                        pos1: usize,
+                        pos2: usize,
+                        world_size: usize,
+                    ) -> isize {
+                        let direct = pos2 as isize - pos1 as isize;
+                        let wrap_positive = direct + world_size as isize;
+                        let wrap_negative = direct - world_size as isize;
+
+                        if direct.abs() <= wrap_positive.abs()
+                            && direct.abs() <= wrap_negative.abs()
+                        {
+                            direct
+                        } else if wrap_positive.abs() <= wrap_negative.abs() {
+                            wrap_positive
+                        } else {
+                            wrap_negative
+                        }
+                    }
+
+                    let dx = shortest_wrapped_distance(source_x, other_x, world_width);
+                    let dy = shortest_wrapped_distance(source_y, other_y, world_height);
+
+                    // Determine direction based on dx and dy.
+                    let direction = if dx == 0 && dy == 0 {
+                        0 // Same position
+                    } else if dx > 0 && dy == 0 {
+                        1 // Right
+                    } else if dx > 0 && dy > 0 {
+                        2 // Top right
+                    } else if dx == 0 && dy > 0 {
+                        3 // Top
+                    } else if dx < 0 && dy > 0 {
+                        4 // Top left
+                    } else if dx < 0 && dy == 0 {
+                        5 // Left
+                    } else if dx < 0 && dy < 0 {
+                        6 // Bottom left
+                    } else if dx == 0 && dy < 0 {
+                        7 // Bottom
+                    } else {
+                        8 // Bottom right
+                    };
+
+                    // Send the broadcast message to the other player
+                    player
+                        .conn
+                        .async_write_all(format!("message {direction}, ").as_bytes())
+                        .await?;
+                    player.conn.async_write_all(&text).await?;
+                    player.conn.async_write_all(b"\n").await?;
+                }
+            }
+            Command::Evolve(players) => {
+                for player_id in players {
+                    state.players[player_id].level += 1;
+                }
             }
             _ => {
                 let player = &state.players[player_id];
