@@ -187,7 +187,7 @@ impl State {
         let player_ids: Vec<PlayerId> = self.players.keys().collect();
 
         for id in player_ids {
-            let Some(cmd) = self.players[id].try_unqueue_command() else {
+            let Some(cmd) = self.players[id].tick() else {
                 continue;
             };
 

@@ -59,7 +59,11 @@ struct PlayerGuard(PlayerId);
 
 impl Drop for PlayerGuard {
     fn drop(&mut self) {
-        state().leave(self.0);
+        let mut state = state();
+        if state.players.contains_key(self.0) {
+            // TODO dont leave, just make the player available for a new connection (so it's inventory isn't lost)
+            state.leave(self.0);
+        }
     }
 }
 
