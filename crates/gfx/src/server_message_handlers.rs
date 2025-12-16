@@ -6,6 +6,25 @@ pub use server_communication::ServerAddress;
 use server_communication::*;
 
 mod dust_cloud;
+mod beep {
+    use bevy::prelude::*;
+
+    pub struct BeepPlugin;
+
+    impl Plugin for BeepPlugin {
+        fn build(&self, app: &mut App) {
+            app.add_systems(Startup, setup);
+        }
+    }
+
+    fn setup(asset_server: Res<AssetServer>) {
+        AudioPlayer::new(asset_server.load("beep.wav"));
+    }
+
+    pub fn play_beep(asset_server: &Res<AssetServer>, commands: &mut Commands) {
+        commands.spawn(AudioPlayer::new(asset_server.load("beep.wav")));
+    }
+}
 
 /// Plugin to handle messages from the server
 pub(crate) struct ServerMessageHandlersPlugin;
@@ -15,6 +34,7 @@ impl Plugin for ServerMessageHandlersPlugin {
         app.insert_resource(TileStacks::default());
         app.add_plugins(ServerCommunicationPlugin);
         app.add_plugins(dust_cloud::DustExplosionPlugin);
+        app.add_plugins(beep::BeepPlugin);
         app.add_systems(
             Update,
             (
@@ -637,6 +657,7 @@ pub struct DestroyAfter(pub Timer);
 
 fn player_broadcast(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     mut reader: MessageReader<ServerMessage>,
     players: Query<(Entity, &Id), With<Player>>,
     current_nodes: Query<(Entity, &FollowEntity)>,
@@ -659,6 +680,7 @@ fn player_broadcast(
                 FollowEntity(player_e),
                 DestroyAfter(Timer::from_seconds(2.0, TimerMode::Once)),
             ));
+            beep::play_beep(&asset_server, &mut commands);
         } else {
             warn!(
                 "Unknown player #{} broadcasted message: {}",
