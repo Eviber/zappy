@@ -52,6 +52,7 @@ fn translate_camera(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut camera_query: Single<&mut Transform, With<Camera3d>>,
     mut focus: ResMut<CameraFocus>,
+    map_size: Res<MapSize>,
     time: Res<Time>,
 ) {
     let mut direction = Vec3::ZERO;
@@ -81,7 +82,22 @@ fn translate_camera(
     camera_right.y = 0.0;
     camera_right = camera_right.normalize();
     direction = (camera_forward * direction.z + camera_right * direction.x).normalize();
-    let movement = direction * MOVE_SPEED * time.delta_secs();
+    let mut movement = direction * MOVE_SPEED * time.delta_secs();
+    let future_focus = focus.0 + movement;
+    let min_x = 0.0;
+    let max_x = map_size.width as f32 * TILE_SIZE;
+    let min_z = 0.0;
+    let max_z = map_size.height as f32 * TILE_SIZE;
+    if future_focus.x < min_x {
+        movement.x += min_x - future_focus.x;
+    } else if future_focus.x > max_x {
+        movement.x += max_x - future_focus.x;
+    }
+    if future_focus.z < min_z {
+        movement.z += min_z - future_focus.z;
+    } else if future_focus.z > max_z {
+        movement.z += max_z - future_focus.z;
+    }
     camera_query.translation += movement;
     focus.0 += movement;
 }
