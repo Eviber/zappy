@@ -52,7 +52,12 @@ fn grid(map_size: Res<MapSize>, mut gizmos: Gizmos) {
         Isometry3d::new(translation, Quat::from_rotation_arc(Vec3::Z, Vec3::Y)),
         UVec2::new(map_size.width as u32, map_size.height as u32),
         Vec2::splat(TILE_SIZE),
-        LinearRgba::gray(0.6),
+        LinearRgba {
+            red: 0.1,
+            green: 0.3,
+            blue: 0.1,
+            alpha: 1.0,
+        },
     );
 }
 
