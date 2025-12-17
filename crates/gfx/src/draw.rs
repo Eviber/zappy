@@ -42,16 +42,14 @@ fn axes(mut gizmos: Gizmos, query: Query<(&GlobalTransform,), With<Player>>) {
 }
 
 /// Draw a grid on the ground
-fn grid(
-    ground: Single<&GlobalTransform, With<Ground>>,
-    map_size: Res<MapSize>,
-    mut gizmos: Gizmos,
-) {
+fn grid(map_size: Res<MapSize>, mut gizmos: Gizmos) {
+    let translation = Vec3::new(
+        (map_size.width as f32 * TILE_SIZE) / 2.0 - TILE_SIZE / 2.0,
+        0.0,
+        (map_size.height as f32 * TILE_SIZE) / 2.0 - TILE_SIZE / 2.0,
+    );
     gizmos.grid(
-        Isometry3d::new(
-            ground.translation(),
-            Quat::from_rotation_arc(Vec3::Z, ground.up().as_vec3()),
-        ),
+        Isometry3d::new(translation, Quat::from_rotation_arc(Vec3::Z, Vec3::Y)),
         UVec2::new(map_size.width as u32, map_size.height as u32),
         Vec2::splat(TILE_SIZE),
         LinearRgba::gray(0.6),

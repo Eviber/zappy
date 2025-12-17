@@ -29,6 +29,7 @@ pub enum ServerMessage {
     Error(String),
 }
 
+#[derive(Clone, Copy)]
 pub struct UpdateMapSize {
     pub width: usize,
     pub height: usize,
