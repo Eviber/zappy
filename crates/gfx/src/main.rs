@@ -49,25 +49,13 @@ fn main() {
         .run();
 }
 
-fn setup(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
+fn setup(mut commands: Commands) {
     let map_size = MapSize {
         width: 0,
         height: 0,
     };
     commands.insert_resource(map_size);
     commands.insert_resource(TimeUnit(0));
-
-    // plane
-    commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh())),
-        MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
-        Transform::default(),
-        Ground,
-    ));
 
     // light
     commands.spawn((
