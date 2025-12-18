@@ -1,5 +1,6 @@
 // Server communications using TCP sockets
 
+use crate::server_message_handlers::Id;
 use bevy::prelude::*;
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::TcpStream;
@@ -12,9 +13,16 @@ pub struct ServerCommunicationPlugin;
 
 impl Plugin for ServerCommunicationPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_server_connection);
         app.add_message::<ServerMessage>();
-        app.add_systems(PreUpdate, receive_server_message);
+        app.add_systems(
+            PreUpdate,
+            (
+                add_connecting_overlay,
+                setup_server_connection,
+                receive_server_message.run_if(resource_exists::<ServerConnection>),
+            )
+                .chain(),
+        );
     }
 }
 
@@ -34,35 +42,94 @@ pub struct ServerConnection {
     buffer: String,
 }
 
-pub fn setup_server_connection(mut commands: Commands, server_address: Res<ServerAddress>) {
-    match TcpStream::connect(&server_address.0) {
-        Ok(stream) => {
-            // Set socket to non-blocking mode
-            if let Err(e) = stream.set_nonblocking(true) {
-                error!("Failed to set socket to non-blocking: {}", e);
-                return;
-            }
+#[derive(Component)]
+struct ConnectingOverlay;
 
-            // Clone the stream for both reading and writing
-            let reader_stream = match stream.try_clone() {
-                Ok(s) => s,
-                Err(e) => {
-                    error!("Failed to clone stream: {}", e);
-                    return;
-                }
-            };
+fn add_connecting_overlay(
+    mut commands: Commands,
+    overlay: Option<Single<Entity, With<ConnectingOverlay>>>,
+    connected: Option<Res<ServerConnection>>,
+) {
+    if overlay.is_some() || connected.is_some() {
+        return;
+    }
+    let container = Node {
+        width: Val::Percent(100.0),
+        height: Val::Percent(100.0),
+        justify_content: JustifyContent::Center,
+        ..default()
+    };
 
-            info!("Connected to server at {}", server_address.0);
+    let square = (
+        BackgroundColor(Color::srgba(0.65, 0.65, 0.65, 0.8)),
+        Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            border: UiRect::all(Val::Px(5.)),
+            ..default()
+        },
+    );
 
-            commands.insert_resource(ServerConnection {
-                stream,
-                reader: BufReader::new(reader_stream),
-                buffer: String::new(),
+    commands
+        .spawn((container, ConnectingOverlay))
+        .with_children(|parent| {
+            parent.spawn(square).with_children(|parent| {
+                parent.spawn((
+                    Node {
+                        margin: UiRect::all(Val::Auto),
+                        ..default()
+                    },
+                    Text::new("Connecting..."),
+                    TextFont::default().with_font_size(24.0),
+                    TextColor(Color::BLACK),
+                    TextLayout::new_with_justify(Justify::Center),
+                ));
             });
-        }
+        });
+}
+
+fn setup_server_connection(
+    mut commands: Commands,
+    server_address: Res<ServerAddress>,
+    server_connection: Option<Res<ServerConnection>>,
+    query: Option<Single<Entity, With<ConnectingOverlay>>>,
+    id_entities: Query<Entity, With<Id>>,
+) {
+    if server_connection.is_some() {
+        return;
+    }
+    let Ok(stream) = TcpStream::connect(&server_address.0) else {
+        return;
+    };
+
+    // Set socket to non-blocking mode
+    if let Err(e) = stream.set_nonblocking(true) {
+        error!("Failed to set socket to non-blocking: {}", e);
+        return;
+    }
+
+    // Clone the stream for both reading and writing
+    let reader_stream = match stream.try_clone() {
+        Ok(s) => s,
         Err(e) => {
-            error!("Failed to connect to server at {}: {}", server_address.0, e);
+            error!("Failed to clone stream: {}", e);
+            return;
         }
+    };
+
+    info!("Connected to server at {}", server_address.0);
+
+    commands.insert_resource(ServerConnection {
+        stream,
+        reader: BufReader::new(reader_stream),
+        buffer: String::new(),
+    });
+
+    if let Some(overlay_entity) = query {
+        commands.entity(*overlay_entity).despawn();
+    }
+    for entity in id_entities.iter() {
+        commands.entity(entity).despawn();
     }
 }
 
