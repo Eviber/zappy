@@ -105,6 +105,11 @@ pub struct PlayerState {
     pub inventory: PlayerInventory,
     /// The current level of the player.
     pub level: usize,
+
+    /// Indicates that the player is currently leveling up.
+    ///
+    /// When `true`, the player cannot do anything.
+    pub is_leveling_up: bool,
 }
 
 impl PlayerState {
@@ -140,6 +145,7 @@ impl PlayerState {
             y: rng.next_u64() as usize % height,
             level: 1,
             inventory: PlayerInventory::new(),
+            is_leveling_up: false,
         }
     }
 
@@ -176,6 +182,28 @@ impl PlayerState {
                 command,
             })
             .is_ok()
+    }
+
+    /// Removes commands that are blocked by leveling up.
+    pub fn remove_level_up_commands(&mut self) {
+        let mut i = 0;
+        while i < self.commands.len() {
+            if matches!(
+                self.commands[i].command,
+                Command::TurnLeft
+                    | Command::TurnRight
+                    | Command::DropObject(_)
+                    | Command::PickUpObject(_)
+                    | Command::Evolve(_)
+                    | Command::MoveForward
+                    | Command::KnockPlayer
+                    | Command::LayAnEgg
+            ) {
+                self.commands.remove(i);
+            } else {
+                i += 1;
+            }
+        }
     }
 
     /// Turns the player right.

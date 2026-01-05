@@ -104,7 +104,11 @@ pub async fn handle(mut client: Client, team_id: TeamId) -> Result<(), ClientErr
 
     loop {
         let line = client.recv_line().await?;
-        let cmd = Command::parse(line)?;
-        state().players[player_id].schedule_command(cmd);
+
+        {
+            let mut state = state();
+            let cmd = Command::parse(line, player_id, &mut state).await?;
+            state.players[player_id].schedule_command(cmd);
+        }
     }
 }
