@@ -184,6 +184,28 @@ impl PlayerState {
             .is_ok()
     }
 
+    /// Removes commands that are blocked by leveling up.
+    pub fn remove_level_up_commands(&mut self) {
+        let mut i = 0;
+        while i < self.commands.len() {
+            if matches!(
+                self.commands[i].command,
+                Command::TurnLeft
+                    | Command::TurnRight
+                    | Command::DropObject(_)
+                    | Command::PickUpObject(_)
+                    | Command::Evolve(_)
+                    | Command::MoveForward
+                    | Command::KnockPlayer
+                    | Command::LayAnEgg
+            ) {
+                self.commands.remove(i);
+            } else {
+                i += 1;
+            }
+        }
+    }
+
     /// Turns the player right.
     #[inline]
     pub fn turn_right(&mut self) {

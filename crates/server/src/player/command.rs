@@ -161,6 +161,7 @@ impl Command {
                     let player = &mut state.players[player];
 
                     player.is_leveling_up = true;
+                    player.remove_level_up_commands();
 
                     if let Err(err) = player.conn.async_write_all(b"elevation en cours").await {
                         return Err(err.into());
