@@ -74,7 +74,13 @@ impl Command {
                 Ok(Self::DropObject(object))
             }
             b"expulse" => Ok(Self::KnockPlayer),
-            b"broadcast" => Ok(Self::Broadcast(args.into())),
+            b"broadcast" => {
+                if args.contains(&b'\n') {
+                    Err(PlayerError::InvalidBroadcast)
+                } else {
+                    Ok(Self::Broadcast(args.into()))
+                }
+            }
             b"incantation" => Ok(Self::Evolve),
             b"fork" => Ok(Self::LayAnEgg),
             b"connect_nbr" => Ok(Self::AvailableTeamSlots),
@@ -184,8 +190,8 @@ impl Command {
                 }
                 ft_log::info!("len is {}", sight.len());
                 let mut result = String::from("{");
-                for i in 0..sight.len() {
-                    match sight[i] {
+                for s in &sight {
+                    match s {
                         Some(cell) => {
                             for _ in 0..cell.food {
                                 result.push_str("nourriture ");
@@ -251,6 +257,93 @@ impl Command {
                     .conn
                     .async_write_all(b"ok\n")
                     .await?;
+            }
+            Command::Broadcast(text) => {
+                // Handled when parsing the command in the first place.
+                assert!(!text.contains(&b'\n'));
+
+                let source_x = state.players[player_id].x;
+                let source_y = state.players[player_id].y;
+
+                let world_width = state.world.width;
+                let world_height = state.world.height;
+
+                for (other_player_id, player) in &state.players {
+                    if other_player_id == player_id {
+                        continue;
+                    }
+
+                    let other_x = state.players[other_player_id].x;
+                    let other_y = state.players[other_player_id].y;
+
+                    // Calculate the shortest distance considering world wrapping in both
+                    // dimensions.
+
+                    fn shortest_wrapped_distance(
+                        pos1: usize,
+                        pos2: usize,
+                        world_size: usize,
+                    ) -> isize {
+                        let direct = pos2 as isize - pos1 as isize;
+                        let wrap_positive = direct + world_size as isize;
+                        let wrap_negative = direct - world_size as isize;
+
+                        if direct.abs() <= wrap_positive.abs()
+                            && direct.abs() <= wrap_negative.abs()
+                        {
+                            direct
+                        } else if wrap_positive.abs() <= wrap_negative.abs() {
+                            wrap_positive
+                        } else {
+                            wrap_negative
+                        }
+                    }
+
+                    let dx = shortest_wrapped_distance(source_x, other_x, world_width);
+                    let dy = shortest_wrapped_distance(source_y, other_y, world_height);
+
+                    // Determine direction based on dx and dy.
+                    let direction = if dx == 0 && dy == 0 {
+                        0 // Same position
+                    } else if dx > 0 && dy == 0 {
+                        1 // Right
+                    } else if dx > 0 && dy > 0 {
+                        2 // Top right
+                    } else if dx == 0 && dy > 0 {
+                        3 // Top
+                    } else if dx < 0 && dy > 0 {
+                        4 // Top left
+                    } else if dx < 0 && dy == 0 {
+                        5 // Left
+                    } else if dx < 0 && dy < 0 {
+                        6 // Bottom left
+                    } else if dx == 0 && dy < 0 {
+                        7 // Bottom
+                    } else {
+                        8 // Bottom right
+                    };
+
+                    // Send the broadcast message to the other player
+                    player
+                        .conn
+                        .async_write_all(format!("message {direction}, ").as_bytes())
+                        .await?;
+                    player.conn.async_write_all(&text).await?;
+                    player.conn.async_write_all(b"\n").await?;
+                }
+
+                state.players[player_id]
+                    .conn
+                    .async_write_all(b"ok\n")
+                    .await?;
+
+                {
+                    let mut gfx_message: Vec<u8> = format!("pbc #{}", player_id).into();
+                    gfx_message.push(b' ');
+                    gfx_message.extend_from_slice(&text);
+                    gfx_message.push(b'\n');
+                    state.broadcast_to_graphics_monitors(&gfx_message).await;
+                }
             }
             _ => {
                 let player = &state.players[player_id];
