@@ -105,6 +105,11 @@ pub struct PlayerState {
     pub inventory: PlayerInventory,
     /// The current level of the player.
     pub level: usize,
+
+    /// Indicates that the player is currently leveling up.
+    ///
+    /// When `true`, the player cannot do anything.
+    pub is_leveling_up: bool,
 }
 
 impl PlayerState {
@@ -140,6 +145,7 @@ impl PlayerState {
             y: rng.next_u64() as usize % height,
             level: 1,
             inventory: PlayerInventory::new(),
+            is_leveling_up: false,
         }
     }
 

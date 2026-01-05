@@ -1,6 +1,6 @@
 //! Defines the [`PlayerError`] type.
 
-use core::fmt;
+use {core::fmt, ft::Errno};
 
 use alloc::boxed::Box;
 
@@ -30,6 +30,17 @@ pub enum PlayerError {
     InvalidBroadcast,
     /// The player tried to evolve a player with insufficient resources.
     CantEvolve,
+    /// The player is currently leveling up.
+    IsLevelingUp,
+    /// An error occurred while processing the player's request.
+    System(Errno),
+}
+
+impl From<Errno> for PlayerError {
+    #[inline]
+    fn from(err: Errno) -> Self {
+        PlayerError::System(err)
+    }
 }
 
 impl fmt::Display for PlayerError {
@@ -67,6 +78,12 @@ impl fmt::Display for PlayerError {
             }
             PlayerError::CantEvolve => {
                 write!(f, "player cannot evolve with insufficient resources")
+            }
+            PlayerError::IsLevelingUp => {
+                write!(f, "player is currently leveling up")
+            }
+            PlayerError::System(ref err) => {
+                write!(f, "system error: {}", err)
             }
         }
     }

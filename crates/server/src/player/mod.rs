@@ -107,7 +107,7 @@ pub async fn handle(mut client: Client, team_id: TeamId) -> Result<(), ClientErr
 
         {
             let mut state = state();
-            let cmd = Command::parse(line, player_id, &mut state)?;
+            let cmd = Command::parse(line, player_id, &mut state).await?;
             state.players[player_id].schedule_command(cmd);
         }
     }

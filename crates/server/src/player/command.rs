@@ -54,7 +54,7 @@ impl Command {
     }
 
     /// Parses the provided byte string.
-    pub fn parse(
+    pub async fn parse(
         command: &[u8],
         player_id: PlayerId,
         state: &mut State,
@@ -62,22 +62,51 @@ impl Command {
         let (cmd_name, args) = slice_split_once(command, b' ').unwrap_or((command, b""));
 
         match cmd_name {
-            b"avance" => Ok(Self::MoveForward),
-            b"droite" => Ok(Self::TurnRight),
-            b"gauche" => Ok(Self::TurnLeft),
+            b"avance" => {
+                if state.players[player_id].is_leveling_up {
+                    return Err(PlayerError::IsLevelingUp);
+                }
+                Ok(Self::MoveForward)
+            }
+            b"droite" => {
+                if state.players[player_id].is_leveling_up {
+                    return Err(PlayerError::IsLevelingUp);
+                }
+                Ok(Self::TurnRight)
+            }
+            b"gauche" => {
+                if state.players[player_id].is_leveling_up {
+                    return Err(PlayerError::IsLevelingUp);
+                }
+                Ok(Self::TurnLeft)
+            }
             b"voir" => Ok(Self::LookAround),
             b"inventaire" => Ok(Self::Inventory),
             b"prend" => {
+                if state.players[player_id].is_leveling_up {
+                    return Err(PlayerError::IsLevelingUp);
+                }
+
                 let object = ObjectClass::from_arg(args)
                     .ok_or_else(|| PlayerError::UnknownObjectClass(args.into()))?;
                 Ok(Self::PickUpObject(object))
             }
             b"pose" => {
+                if state.players[player_id].is_leveling_up {
+                    return Err(PlayerError::IsLevelingUp);
+                }
+
                 let object = ObjectClass::from_arg(args)
                     .ok_or_else(|| PlayerError::UnknownObjectClass(args.into()))?;
                 Ok(Self::DropObject(object))
             }
-            b"expulse" => Ok(Self::KnockPlayer),
+            b"expulse" => {
+                if state.players[player_id].is_leveling_up {
+                    return Err(PlayerError::IsLevelingUp);
+                }
+
+                Ok(Self::KnockPlayer)
+            }
             b"broadcast" => {
                 if args.contains(&b'\n') {
                     Err(PlayerError::InvalidBroadcast)
@@ -86,6 +115,10 @@ impl Command {
                 }
             }
             b"incantation" => {
+                if state.players[player_id].is_leveling_up {
+                    return Err(PlayerError::IsLevelingUp);
+                }
+
                 let player = &state.players[player_id];
                 let cell_x = player.x;
                 let cell_y = player.y;
@@ -124,6 +157,16 @@ impl Command {
                     return Err(PlayerError::CantEvolve);
                 }
 
+                for &player in players.iter() {
+                    let player = &mut state.players[player];
+
+                    player.is_leveling_up = true;
+
+                    if let Err(err) = player.conn.async_write_all(b"elevation en cours").await {
+                        return Err(err.into());
+                    }
+                }
+
                 state.world.cells[cell_index].linemate -= req_l;
                 state.world.cells[cell_index].deraumere -= req_d;
                 state.world.cells[cell_index].sibur -= req_s;
@@ -133,7 +176,12 @@ impl Command {
 
                 Ok(Self::Evolve(players))
             }
-            b"fork" => Ok(Self::LayAnEgg),
+            b"fork" => {
+                if state.players[player_id].is_leveling_up {
+                    return Err(PlayerError::IsLevelingUp);
+                }
+                Ok(Self::LayAnEgg)
+            }
             b"connect_nbr" => Ok(Self::AvailableTeamSlots),
             _ => Err(PlayerError::UnknownCommand(cmd_name.into())),
         }
@@ -385,7 +433,13 @@ impl Command {
             }
             Command::Evolve(players) => {
                 for player_id in players {
-                    state.players[player_id].level += 1;
+                    if let Some(player) = state.players.get_mut(player_id) {
+                        player.level += 1;
+                        player.is_leveling_up = false;
+
+                        let buf = format!("niveau actuel : {}", player.level);
+                        player.conn.async_write_all(buf.as_bytes()).await?;
+                    }
                 }
             }
             _ => {
