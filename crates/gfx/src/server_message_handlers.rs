@@ -5,6 +5,8 @@ mod server_communication;
 pub use server_communication::ServerAddress;
 use server_communication::*;
 
+mod dust_cloud;
+
 /// Plugin to handle messages from the server
 pub(crate) struct ServerMessageHandlersPlugin;
 
@@ -12,6 +14,7 @@ impl Plugin for ServerMessageHandlersPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(TileStacks::default());
         app.add_plugins(ServerCommunicationPlugin);
+        app.add_plugins(dust_cloud::DustExplosionPlugin);
         app.add_systems(
             Update,
             (
@@ -24,18 +27,17 @@ impl Plugin for ServerMessageHandlersPlugin {
         app.add_systems(
             Update,
             (
-                update_tile_content,
                 add_team,
                 add_player,
                 fork_player,
                 move_player,
-                player_drop_item,
-                player_get_item,
+                ((player_drop_item, player_get_item), update_tile_content).chain(),
+                animate_moving_items,
                 kill_player,
                 update_player_level,
                 update_player_inventory,
                 expulse_player,
-                player_broadcast,
+                (update_broadcasts, player_broadcast, follow_entities).chain(),
                 start_incantation,
                 end_incantation,
                 add_egg,
@@ -167,6 +169,26 @@ impl std::fmt::Display for Item {
 #[derive(Resource, Default)]
 struct TileStacks(std::collections::HashMap<(usize, usize), [Vec<Entity>; 7]>);
 
+fn spawn_resource(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    item: Item,
+    position: Vec3,
+) -> Entity {
+    commands
+        .spawn((
+            item,
+            Transform::from_translation(position),
+            Mesh3d(meshes.add(Cuboid::new(0.2, 0.1, 0.2).mesh())),
+            MeshMaterial3d(materials.add(item.color())),
+        ))
+        .id()
+}
+
+const STACK_OFFSET: f32 = 0.1;
+const STACK_GAP: f32 = 0.15;
+
 fn update_tile_content(
     mut reader: MessageReader<ServerMessage>,
     mut commands: Commands,
@@ -193,21 +215,18 @@ fn update_tile_content(
             };
             for _ in 0..count {
                 let delta = resource_type.delta_vec();
-                let entity = commands
-                    .spawn((
-                        resource_type,
-                        Transform::from_translation(
-                            delta
-                                + Vec3::new(
-                                    msg.x as f32 * TILE_SIZE,
-                                    0.1 + stack[index].len() as f32 * 0.15,
-                                    msg.y as f32 * TILE_SIZE,
-                                ),
-                        ),
-                        Mesh3d(meshes.add(Cuboid::new(0.2, 0.1, 0.2).mesh())),
-                        MeshMaterial3d(materials.add(resource_type.color())),
-                    ))
-                    .id();
+                let offset = item_stack_offset(
+                    Vec3::new(msg.x as f32 * TILE_SIZE, 0., msg.y as f32 * TILE_SIZE),
+                    stack[index].len(),
+                );
+                let position = delta + offset;
+                let entity = spawn_resource(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    resource_type,
+                    position,
+                );
                 stack[index].push(entity);
             }
         }
@@ -251,7 +270,7 @@ struct Inventory([u32; 7]);
 struct Team(String);
 
 #[derive(Component)]
-struct Id(u32);
+struct Id(u64);
 
 fn player_transform_from_pos(x: usize, y: usize, orientation: u32) -> Transform {
     let rotation = match orientation {
@@ -279,10 +298,17 @@ fn add_player(
             continue;
         };
         let transform = player_transform_from_pos(msg.x, msg.y, msg.orientation);
+        let main_color = bevy::color::palettes::css::RED;
+        let main_color = Color::srgb(main_color.red, main_color.green, main_color.blue);
+        let main_material = materials.add(main_color);
+
+        let spheres_material = materials.add(Color::srgb(0.1, 0.1, 0.1));
+        let spheres_radius = 0.1;
+
         commands
             .spawn((
-                Mesh3d(meshes.add(Cuboid::new(0.8, 1.5, 0.8).mesh())),
-                MeshMaterial3d(materials.add(Color::srgb(0.8, 0.2, 0.2))),
+                Mesh3d(meshes.add(Capsule3d::new(0.4, 1.2).mesh())),
+                MeshMaterial3d(main_material),
                 transform,
                 Player,
                 Inventory([0; 7]),
@@ -290,6 +316,26 @@ fn add_player(
                 Team(msg.team.clone()),
                 Id(msg.id),
             ))
+            .with_children(|parent| {
+                parent.spawn((
+                    Mesh3d(meshes.add(Sphere::new(spheres_radius).mesh())),
+                    MeshMaterial3d(spheres_material.clone()),
+                    Transform::from_translation(Vec3 {
+                        x: -0.2,
+                        y: 0.3,
+                        z: 0.3,
+                    }),
+                ));
+                parent.spawn((
+                    Mesh3d(meshes.add(Sphere::new(spheres_radius).mesh())),
+                    MeshMaterial3d(spheres_material),
+                    Transform::from_translation(Vec3 {
+                        x: 0.2,
+                        y: 0.3,
+                        z: 0.3,
+                    }),
+                ));
+            })
             .observe(on_player_hover)
             .observe(on_unhover);
         info!("Added player #{}", msg.id);
@@ -352,9 +398,43 @@ fn update_player_inventory(
     }
 }
 
+#[derive(Component)]
+struct MovingItem {
+    /// Starting position of the item
+    start_pos: Vec3,
+    /// Target position of the item
+    target_pos: Vec3,
+    /// Time since the animation started
+    progress: f32,
+    /// Total duration of the animation in seconds
+    duration: f32,
+}
+
+/// System to animate moving items
+fn animate_moving_items(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut Transform, &mut MovingItem)>,
+) {
+    for (e, mut transform, mut moving_item) in query.iter_mut() {
+        moving_item.progress += time.delta_secs();
+        let t = (moving_item.progress / moving_item.duration).min(1.0);
+        transform.translation = moving_item.start_pos.lerp(moving_item.target_pos, t);
+        if t >= 1.0 {
+            commands.entity(e).despawn();
+        }
+    }
+}
+
+const ANIMATION_DURATION: f32 = 0.5;
+
 // Don't actually change the world state, as the server will send the proper updates
 fn player_drop_item(
+    mut commands: Commands,
     mut reader: MessageReader<ServerMessage>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut stacks: ResMut<TileStacks>,
     query: Query<(&Id, &Transform), With<Player>>,
 ) {
     for msg in reader.read() {
@@ -368,17 +448,49 @@ fn player_drop_item(
             );
             continue;
         };
-        let Some((_, _transform)) = query.iter().find(|(id, _)| id.0 == msg.player_id) else {
+        let Some((_, player_transform)) = query.iter().find(|(id, _)| id.0 == msg.player_id) else {
             warn!("Received drop item from unknown player #{}", msg.player_id);
             continue;
         };
         info!("Player #{} dropped item {}", msg.player_id, item);
+        let player_translation = player_transform.translation;
+        let tile_x = (player_translation.x / TILE_SIZE).round() as usize;
+        let tile_y = (player_translation.z / TILE_SIZE).round() as usize;
+        let stack_size = stacks.0.entry((tile_x, tile_y)).or_default()[msg.item_id as usize].len();
+        let delta = item.delta_vec();
+        let offset = item_stack_offset(player_translation, stack_size);
+        let target_pos = delta + offset;
+        let entity = spawn_resource(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            item,
+            player_translation,
+        );
+        commands.entity(entity).insert(MovingItem {
+            start_pos: player_translation,
+            target_pos,
+            progress: 0.0,
+            duration: ANIMATION_DURATION,
+        });
     }
+}
+
+fn item_stack_offset(player_translation: Vec3, stack_size: usize) -> Vec3 {
+    Vec3::new(
+        player_translation.x,
+        STACK_OFFSET + stack_size as f32 * STACK_GAP,
+        player_translation.z,
+    )
 }
 
 // Same as above
 fn player_get_item(
+    mut commands: Commands,
     mut reader: MessageReader<ServerMessage>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut stacks: ResMut<TileStacks>,
     query: Query<(&Id, &Transform), With<Player>>,
 ) {
     for msg in reader.read() {
@@ -392,15 +504,46 @@ fn player_get_item(
             );
             continue;
         };
-        let Some((_, _transform)) = query.iter().find(|(id, _)| id.0 == msg.player_id) else {
+        let Some((_, transform)) = query.iter().find(|(id, _)| id.0 == msg.player_id) else {
             warn!("Received get item from unknown player #{}", msg.player_id);
             continue;
         };
         info!("Player #{} got item {}", msg.player_id, item);
+        let tile_x = (transform.translation.x / TILE_SIZE).round() as usize;
+        let tile_y = (transform.translation.z / TILE_SIZE).round() as usize;
+        let stack = stacks.0.entry((tile_x, tile_y)).or_default();
+        let delta = item.delta_vec();
+        let offset = item_stack_offset(
+            Vec3::new(tile_x as f32 * TILE_SIZE, 0., tile_y as f32 * TILE_SIZE),
+            stack[msg.item_id as usize].len() - 1,
+        );
+        let item_position = delta + offset;
+        let entity = stack[msg.item_id as usize].pop().unwrap_or_else(|| {
+            warn!(
+                "No item {} found on tile ({}, {}) for player #{} to get",
+                item, tile_x, tile_y, msg.player_id
+            );
+            spawn_resource(
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                item,
+                item_position,
+            )
+        });
+        let player_translation = transform.translation;
+        commands.entity(entity).insert(MovingItem {
+            start_pos: item_position,
+            target_pos: player_translation,
+            progress: 0.0,
+            duration: ANIMATION_DURATION,
+        });
     }
 }
 
 fn expulse_player(
+    mut commands: Commands,
+    dust_assets: Res<dust_cloud::DustExplosionAssets>,
     mut reader: MessageReader<ServerMessage>,
     mut query: Query<(&Id, &Transform), With<Player>>,
 ) {
@@ -408,9 +551,9 @@ fn expulse_player(
         let ServerMessage::PlayerExpulsion(msg) = msg else {
             continue;
         };
-        if let Some((_, _transform)) = query.iter_mut().find(|(id, _)| id.0 == msg.0) {
-            // TODO: add expulsion effect here
+        if let Some((_, transform)) = query.iter_mut().find(|(id, _)| id.0 == msg.0) {
             info!("Player #{} has been expelled!", msg.0);
+            dust_cloud::spawn_dust_explosion(&mut commands, &dust_assets, *transform);
         } else {
             warn!("Received expulsion for unknown player #{}", msg.0);
         }
@@ -461,19 +604,98 @@ fn kill_player(
     }
 }
 
-fn player_broadcast(mut reader: MessageReader<ServerMessage>, query: Query<&Id, With<Player>>) {
+/// Component to make a node follow an entity
+#[derive(Component)]
+pub struct FollowEntity(pub Entity);
+
+/// Component to destroy the entity after some time
+#[derive(Component)]
+pub struct DestroyAfter(pub Timer);
+
+fn player_broadcast(
+    mut commands: Commands,
+    mut reader: MessageReader<ServerMessage>,
+    players: Query<(Entity, &Id), With<Player>>,
+    current_nodes: Query<(Entity, &FollowEntity)>,
+) {
     for msg in reader.read() {
         let ServerMessage::PlayerBroadcast(msg) = msg else {
             continue;
         };
-        if query.iter().any(|id| id.0 == msg.id) {
+        if let Some((player_e, _)) = players.iter().find(|(_, id)| id.0 == msg.id) {
             info!("Player #{} broadcasted message: {}", msg.id, msg.message);
+            for (node_e, follow_entity) in current_nodes.iter() {
+                if follow_entity.0 == player_e {
+                    commands.entity(node_e).despawn();
+                }
+            }
+            commands.spawn((
+                Node { ..default() },
+                Text::new(&msg.message),
+                TextColor(Color::srgba(0., 0., 0., 0.)),
+                FollowEntity(player_e),
+                DestroyAfter(Timer::from_seconds(2.0, TimerMode::Once)),
+            ));
         } else {
             warn!(
                 "Unknown player #{} broadcasted message: {}",
                 msg.id, msg.message
             );
         }
+    }
+}
+
+fn update_broadcasts(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut DestroyAfter)>,
+) {
+    for (entity, mut destroy_after) in query.iter_mut() {
+        destroy_after.0.tick(time.delta());
+        if destroy_after.0.is_finished() {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+fn follow_entities(
+    mut commands: Commands,
+    camera: Single<(&Camera, &GlobalTransform)>,
+    mut query: Query<
+        (
+            Entity,
+            &FollowEntity,
+            &ComputedNode,
+            &mut Node,
+            &mut TextColor,
+        ),
+        Without<Player>,
+    >,
+    players: Query<&Transform, With<Player>>,
+) {
+    let (camera, camera_transform) = *camera;
+    for (entity, follow_entity, computed_node, mut node, mut color) in query.iter_mut() {
+        let size = computed_node.size();
+        if size.x == 0.0 && size.y == 0.0 {
+            // not yet computed
+            continue;
+        }
+        let Ok(target_transform) = players.get(follow_entity.0) else {
+            info!(
+                "Followed entity {:?} not found, despawning follower",
+                follow_entity.0
+            );
+            commands.entity(entity).despawn();
+            continue;
+        };
+        let target = target_transform.translation + Vec3::new(0., 3., 0.);
+        let screen_pos = camera.world_to_viewport(camera_transform, target);
+        let Ok(screen_pos) = screen_pos else {
+            continue;
+        };
+        node.left = Val::Px(screen_pos.x - size.x / 2.);
+        node.top = Val::Px(screen_pos.y);
+        *color = TextColor(Color::BLACK);
     }
 }
 

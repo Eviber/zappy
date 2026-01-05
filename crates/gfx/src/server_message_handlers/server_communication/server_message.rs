@@ -43,7 +43,7 @@ pub struct UpdateTileContent {
 }
 
 pub struct NewPlayer {
-    pub id: u32,
+    pub id: u64,
     pub x: usize,
     pub y: usize,
     pub orientation: u32,
@@ -52,33 +52,33 @@ pub struct NewPlayer {
 }
 
 pub struct PlayerPosition {
-    pub id: u32,
+    pub id: u64,
     pub x: usize,
     pub y: usize,
     pub orientation: u32,
 }
 
 pub struct PlayerLevel {
-    pub id: u32,
+    pub id: u64,
     pub level: u32,
 }
 
 pub struct PlayerInventory {
-    pub id: u32,
+    pub id: u64,
     pub _x: usize,
     pub _y: usize,
     pub items: [u32; 7],
 }
 
 pub struct PlayerItemInteraction {
-    pub player_id: u32,
+    pub player_id: u64,
     pub item_id: u32,
 }
 
-pub struct Id(pub u32);
+pub struct Id(pub u64);
 
 pub struct PlayerBroadcast {
-    pub id: u32,
+    pub id: u64,
     pub message: String,
 }
 
@@ -86,7 +86,7 @@ pub struct IncantationStart {
     pub x: usize,
     pub y: usize,
     pub _incantation_level: u32,
-    pub players: Vec<u32>,
+    pub players: Vec<u64>,
 }
 
 pub struct IncantationEnd {
@@ -96,14 +96,14 @@ pub struct IncantationEnd {
 }
 
 pub struct NewEgg {
-    pub id: u32,
-    pub parent_id: u32,
+    pub id: u64,
+    pub parent_id: u64,
     pub x: usize,
     pub y: usize,
 }
 
 pub struct PlayerConnectsFromEgg {
-    pub egg_id: u32,
+    pub egg_id: u64,
 }
 
 use std::num::ParseIntError;
@@ -114,7 +114,7 @@ fn parse_int<T: FromStr<Err = ParseIntError>>(s: &str) -> Result<T, String> {
 }
 
 /// Utility to parse an id prefixed with an optional '#'.
-fn parse_id(s: &str) -> Result<u32, String> {
+fn parse_id(s: &str) -> Result<u64, String> {
     parse_int(s.strip_prefix('#').unwrap_or(s))
 }
 
@@ -286,7 +286,7 @@ impl FromStr for IncantationStart {
         let players = parts[4..]
             .iter()
             .map(|p| parse_id(p))
-            .collect::<Result<Vec<u32>, String>>()?;
+            .collect::<Result<Vec<u64>, String>>()?;
         Ok(IncantationStart {
             x: parse_int(parts[1])?,
             y: parse_int(parts[2])?,
