@@ -14,8 +14,9 @@ impl Plugin for BeepPlugin {
     }
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut beep: ResMut<BeepHandle>) {
-    beep.0 = asset_server.load("beep.wav");
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let beep = asset_server.load("beep.wav");
+    commands.insert_resource(BeepHandle(beep));
     commands.add_observer(on_beep);
 }
 
