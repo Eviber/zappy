@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::*;
 use bevy::prelude::*;
 
@@ -6,6 +8,7 @@ pub use server_communication::ServerAddress;
 use server_communication::*;
 
 mod beep;
+mod color_utils;
 mod dust_cloud;
 
 /// Plugin to handle messages from the server
@@ -17,6 +20,7 @@ impl Plugin for ServerMessageHandlersPlugin {
         app.add_plugins(ServerCommunicationPlugin);
         app.add_plugins(dust_cloud::DustExplosionPlugin);
         app.add_plugins(beep::BeepPlugin);
+        app.add_systems(Startup, setup_assets);
         app.add_systems(
             Update,
             (
@@ -49,7 +53,41 @@ impl Plugin for ServerMessageHandlersPlugin {
                 on_game_end,
             ),
         );
+        app.add_observer(on_team_color_update);
     }
+}
+
+#[derive(Resource)]
+struct EyesHandles {
+    material: Handle<StandardMaterial>,
+    mesh: Handle<Mesh>,
+}
+
+#[derive(Resource)]
+struct DefaultMaterial(Handle<StandardMaterial>);
+
+#[derive(Resource)]
+struct PlayerMeshHandle(Handle<Mesh>);
+
+#[derive(Resource)]
+struct TeamsMaterials(HashMap<String, Handle<StandardMaterial>>);
+
+fn setup_assets(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    let material = materials.add(Color::srgb(0.1, 0.1, 0.1));
+    let mesh = meshes.add(Sphere::new(0.1).mesh());
+    commands.insert_resource(EyesHandles { material, mesh });
+
+    let default_material = materials.add(Color::srgb(1.0, 0.0, 1.0));
+    commands.insert_resource(DefaultMaterial(default_material));
+
+    let player_mesh = meshes.add(Capsule3d::new(0.4, 1.2).mesh());
+    commands.insert_resource(PlayerMeshHandle(player_mesh));
+
+    commands.insert_resource(TeamsMaterials(HashMap::new()));
 }
 
 fn update_map_size(
@@ -258,12 +296,45 @@ fn update_tile_content(
     }
 }
 
-fn add_team(mut reader: MessageReader<ServerMessage>) {
+#[derive(Event)]
+struct UpdateTeamColor {
+    team_name: String,
+    material: Handle<StandardMaterial>,
+}
+
+fn on_team_color_update(
+    event: On<UpdateTeamColor>,
+    mut query: Query<(&Team, &mut MeshMaterial3d<StandardMaterial>), With<Player>>,
+) {
+    for (team, mut material) in &mut query {
+        if team.0 == event.team_name {
+            material.0 = event.material.clone();
+        }
+    }
+}
+
+fn add_team(
+    mut reader: MessageReader<ServerMessage>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut teams_colors: ResMut<TeamsMaterials>,
+    mut commands: Commands,
+) {
     for msg in reader.read() {
         let ServerMessage::TeamName(msg) = msg else {
             continue;
         };
-        info!("Team name: {}", msg);
+        info!("New team name: {}", msg);
+        if teams_colors.0.contains_key(msg) {
+            warn!("Team {} already exists", msg);
+            return;
+        }
+        let color: Color = color_utils::from_name(msg);
+        let material = materials.add(color);
+        teams_colors.0.insert(msg.clone(), material.clone());
+        commands.trigger(UpdateTeamColor {
+            team_name: msg.clone(),
+            material,
+        });
     }
 }
 
@@ -315,24 +386,29 @@ fn player_transform_from_pos(x: usize, y: usize, orientation: u32) -> Transform 
 fn add_player(
     mut reader: MessageReader<ServerMessage>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    player_mesh: Res<PlayerMeshHandle>,
+    team_materials: Res<TeamsMaterials>,
+    eyes: Res<EyesHandles>,
+    default_material: Res<DefaultMaterial>,
 ) {
     for msg in reader.read() {
         let ServerMessage::PlayerNew(msg) = msg else {
             continue;
         };
         let transform = player_transform_from_pos(msg.x, msg.y, msg.orientation);
-        let main_color = bevy::color::palettes::css::RED;
-        let main_color = Color::srgb(main_color.red, main_color.green, main_color.blue);
-        let main_material = materials.add(main_color);
-
-        let spheres_material = materials.add(Color::srgb(0.1, 0.1, 0.1));
-        let spheres_radius = 0.1;
+        let main_material = if let Some(material) = team_materials.0.get(&msg.team) {
+            material.clone()
+        } else {
+            warn!(
+                "Team {} not found for player #{}, using default color",
+                msg.team, msg.id
+            );
+            default_material.0.clone()
+        };
 
         commands
             .spawn((
-                Mesh3d(meshes.add(Capsule3d::new(0.4, 1.2).mesh())),
+                Mesh3d(player_mesh.0.clone()),
                 MeshMaterial3d(main_material),
                 transform,
                 Player,
@@ -343,8 +419,8 @@ fn add_player(
             ))
             .with_children(|parent| {
                 parent.spawn((
-                    Mesh3d(meshes.add(Sphere::new(spheres_radius).mesh())),
-                    MeshMaterial3d(spheres_material.clone()),
+                    Mesh3d(eyes.mesh.clone()),
+                    MeshMaterial3d(eyes.material.clone()),
                     Transform::from_translation(Vec3 {
                         x: -0.2,
                         y: 0.3,
@@ -352,8 +428,8 @@ fn add_player(
                     }),
                 ));
                 parent.spawn((
-                    Mesh3d(meshes.add(Sphere::new(spheres_radius).mesh())),
-                    MeshMaterial3d(spheres_material),
+                    Mesh3d(eyes.mesh.clone()),
+                    MeshMaterial3d(eyes.material.clone()),
                     Transform::from_translation(Vec3 {
                         x: 0.2,
                         y: 0.3,
@@ -777,14 +853,14 @@ fn end_incantation(
             commands.entity(entity).remove::<Incanting>();
             transform.translation.y -= INCANTATION_RISE_HEIGHT;
         }
-        if !msg.success {
+        if msg.success {
             info!(
-                "Incantation at ({}, {}) failed. Players return to normal state.",
+                "Incantation at ({}, {}) succeeded. Players return to normal state.",
                 msg.x, msg.y
             );
         } else {
             info!(
-                "Incantation at ({}, {}) succeeded. Players return to normal state.",
+                "Incantation at ({}, {}) failed. Players return to normal state.",
                 msg.x, msg.y
             );
         }
