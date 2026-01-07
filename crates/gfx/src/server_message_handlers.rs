@@ -11,18 +11,25 @@ mod beep {
 
     pub struct BeepPlugin;
 
+    #[derive(Event)]
+    pub struct Beep;
+
+    #[derive(Resource)]
+    struct BeepHandle(Handle<AudioSource>);
+
     impl Plugin for BeepPlugin {
         fn build(&self, app: &mut App) {
             app.add_systems(Startup, setup);
         }
     }
 
-    fn setup(asset_server: Res<AssetServer>) {
-        AudioPlayer::new(asset_server.load("beep.wav"));
+    fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut beep: ResMut<BeepHandle>) {
+        beep.0 = asset_server.load("beep.wav");
+        commands.add_observer(on_beep);
     }
 
-    pub fn play_beep(asset_server: &Res<AssetServer>, commands: &mut Commands) {
-        commands.spawn(AudioPlayer::new(asset_server.load("beep.wav")));
+    fn on_beep(_: On<Beep>, beep: Res<BeepHandle>, mut commands: Commands) {
+        commands.spawn(AudioPlayer::new(beep.0.clone()));
     }
 }
 
@@ -657,7 +664,6 @@ pub struct DestroyAfter(pub Timer);
 
 fn player_broadcast(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
     mut reader: MessageReader<ServerMessage>,
     players: Query<(Entity, &Id), With<Player>>,
     current_nodes: Query<(Entity, &FollowEntity)>,
@@ -680,7 +686,7 @@ fn player_broadcast(
                 FollowEntity(player_e),
                 DestroyAfter(Timer::from_seconds(2.0, TimerMode::Once)),
             ));
-            beep::play_beep(&asset_server, &mut commands);
+            commands.trigger(beep::Beep);
         } else {
             warn!(
                 "Unknown player #{} broadcasted message: {}",
