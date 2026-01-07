@@ -6,6 +6,7 @@ use super::TILE_SIZE;
 use super::MapSize;
 
 const ZOOM_SPEED: f32 = 1.0;
+const MOVE_SPEED: f32 = 50.0;
 const MIN_CAMERA_DISTANCE: f32 = 5.0;
 const MAX_CAMERA_DISTANCE: f32 = 100.0;
 const MIN_PITCH_ANGLE: f32 = 10f32.to_radians();
@@ -17,27 +18,97 @@ pub(crate) struct UserInputPlugin;
 
 impl Plugin for UserInputPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (zoom_camera, rotate_camera));
+        app.insert_resource(CameraFocus(Vec3::ZERO));
+        app.add_systems(
+            Update,
+            (
+                update_camera_focus_on_map_size_change,
+                zoom_camera,
+                rotate_camera,
+                translate_camera,
+            ),
+        );
     }
 }
 
-fn map_center(map_size: &MapSize) -> Vec3 {
+fn update_camera_focus_on_map_size_change(map_size: Res<MapSize>, mut focus: ResMut<CameraFocus>) {
+    if !map_size.is_changed() {
+        return;
+    }
+    let map_size: &MapSize = &map_size;
     let delta_x = map_size.width as f32 * TILE_SIZE / 2. - TILE_SIZE / 2.;
     let delta_y = map_size.height as f32 * TILE_SIZE / 2. - TILE_SIZE / 2.;
-    Vec3 {
+    focus.0 = Vec3 {
         x: delta_x,
         y: 0.,
         z: delta_y,
+    };
+}
+
+#[derive(Resource)]
+struct CameraFocus(Vec3);
+
+fn translate_camera(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut camera_query: Single<&mut Transform, With<Camera3d>>,
+    mut focus: ResMut<CameraFocus>,
+    map_size: Res<MapSize>,
+    time: Res<Time>,
+) {
+    let mut direction = Vec3::ZERO;
+    if keyboard.pressed(KeyCode::KeyW) {
+        direction += Vec3::Z;
     }
+    if keyboard.pressed(KeyCode::KeyS) {
+        direction += Vec3::Z * -1.0;
+    }
+    if keyboard.pressed(KeyCode::KeyA) {
+        direction += Vec3::X * -1.0;
+    }
+    if keyboard.pressed(KeyCode::KeyD) {
+        direction += Vec3::X;
+    }
+
+    // No movement
+    if direction == Vec3::ZERO {
+        return;
+    }
+
+    direction = direction.normalize();
+    let mut camera_forward: Vec3 = camera_query.forward().into();
+    let mut camera_right: Vec3 = camera_query.right().into();
+    camera_forward.y = 0.0;
+    camera_forward = camera_forward.normalize();
+    camera_right.y = 0.0;
+    camera_right = camera_right.normalize();
+    direction = (camera_forward * direction.z + camera_right * direction.x).normalize();
+    let mut movement = direction * MOVE_SPEED * time.delta_secs();
+    let future_focus = focus.0 + movement;
+    let min_x = 0.0;
+    let max_x = map_size.width as f32 * TILE_SIZE;
+    let min_z = 0.0;
+    let max_z = map_size.height as f32 * TILE_SIZE;
+    if future_focus.x < min_x {
+        movement.x += min_x - future_focus.x;
+    } else if future_focus.x > max_x {
+        movement.x += max_x - future_focus.x;
+    }
+    if future_focus.z < min_z {
+        movement.z += min_z - future_focus.z;
+    } else if future_focus.z > max_z {
+        movement.z += max_z - future_focus.z;
+    }
+    camera_query.translation += movement;
+    focus.0 += movement;
 }
 
 /// Update the camera distance with the scroll
-pub(crate) fn zoom_camera(
+fn zoom_camera(
     mut scroll_events: MessageReader<MouseWheel>,
     mut camera: Single<&mut Transform, With<Camera3d>>,
-    map_size: Res<MapSize>,
+    focus: Res<CameraFocus>,
 ) {
-    let center = map_center(&map_size);
+    let center = focus.0;
     for event in scroll_events.read() {
         let scroll_amount = -event.y;
         debug_assert_ne!(camera.translation, center);
@@ -56,12 +127,12 @@ pub(crate) fn zoom_camera(
     }
 }
 
-pub(crate) fn rotate_camera(
+fn rotate_camera(
     mouse_input: Res<ButtonInput<MouseButton>>,
     mut mouse_motion: MessageReader<MouseMotion>,
     camera_query: Single<&mut Transform, With<Camera3d>>,
     windows: Query<&Window>,
-    map_size: Res<MapSize>,
+    focus: Res<CameraFocus>,
 ) {
     let Ok(window) = windows.single() else {
         return;
@@ -72,7 +143,7 @@ pub(crate) fn rotate_camera(
         return;
     }
 
-    let center = map_center(&map_size);
+    let center = focus.0;
     let mut camera_transform = camera_query;
 
     // Process all mouse motion events this frame

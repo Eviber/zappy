@@ -51,42 +51,65 @@ impl Plugin for ServerMessageHandlersPlugin {
 }
 
 fn update_map_size(
+    mut commands: Commands,
     mut reader: MessageReader<ServerMessage>,
     mut map_size: ResMut<MapSize>,
-    mut ground: Single<(&mut Transform, &mut Mesh3d), With<Ground>>,
+    mut ground_tiles: Query<Entity, With<Ground>>,
     mut camera: Single<&mut Transform, (With<Camera3d>, Without<Ground>)>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    let mut msz_msg = None;
     for msg in reader.read() {
         let ServerMessage::MapSize(msg) = msg else {
             continue;
         };
-        info!("Map size updated: {}x{}", msg.width, msg.height);
-        map_size.width = msg.width;
-        map_size.height = msg.height;
-        let plane_width = map_size.width as f32 * TILE_SIZE;
-        let plane_height = map_size.height as f32 * TILE_SIZE;
-        let delta_x = plane_width / 2. - TILE_SIZE / 2.;
-        let delta_y = plane_height / 2. - TILE_SIZE / 2.;
-        *ground.1 = Mesh3d(meshes.add(Plane3d::default().mesh().size(plane_width, plane_height)));
-        ground.0.translation = Vec3::new(delta_x, 0.0, delta_y);
-        // reposition camera to still look at center of the map
-        let initial_distance = (delta_x.powi(2) + delta_y.powi(2)).sqrt() + 5.0;
-        let initial_height = initial_distance * (45f32.to_radians().sin());
-        let initial_horizontal_distance = initial_distance * (45f32.to_radians().cos());
-        let initial_position = Vec3::new(
-            delta_x + initial_horizontal_distance / (2f32).sqrt(),
-            initial_height,
-            delta_y + initial_horizontal_distance / (2f32).sqrt(),
-        );
-        camera.translation = initial_position;
-        let center: Vec3 = Vec3 {
-            x: delta_x,
-            y: 0.,
-            z: delta_y,
-        };
-        camera.look_at(center, Vec3::Y);
+        msz_msg = Some(msg);
     }
+    let Some(msg) = msz_msg else {
+        return;
+    };
+    for ground_entity in ground_tiles.iter_mut() {
+        commands.entity(ground_entity).despawn();
+    }
+    info!("Map size updated: {}x{}", msg.width, msg.height);
+    map_size.width = msg.width;
+    map_size.height = msg.height;
+    let mesh = Mesh3d(meshes.add(Plane3d::default().mesh().size(TILE_SIZE, TILE_SIZE)));
+    let material = MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3)));
+    for x in 0..map_size.width {
+        let x = x as f32 * TILE_SIZE;
+        for y in 0..map_size.height {
+            let y = y as f32 * TILE_SIZE;
+            let pos = Vec3 { x, y: 0., z: y };
+            commands.spawn((
+                mesh.clone(),
+                material.clone(),
+                Transform::from_translation(pos),
+                Ground,
+            ));
+        }
+    }
+    // reposition camera to still look at center of the map
+    let plane_width = map_size.width as f32 * TILE_SIZE;
+    let plane_height = map_size.height as f32 * TILE_SIZE;
+    let delta_x = plane_width / 2. - TILE_SIZE / 2.;
+    let delta_y = plane_height / 2. - TILE_SIZE / 2.;
+    let initial_distance = (delta_x.powi(2) + delta_y.powi(2)).sqrt() + 5.0;
+    let initial_height = initial_distance * (45f32.to_radians().sin());
+    let initial_horizontal_distance = initial_distance * (45f32.to_radians().cos());
+    let initial_position = Vec3::new(
+        delta_x + initial_horizontal_distance / (2f32).sqrt(),
+        initial_height,
+        delta_y + initial_horizontal_distance / (2f32).sqrt(),
+    );
+    camera.translation = initial_position;
+    let center: Vec3 = Vec3 {
+        x: delta_x,
+        y: 0.,
+        z: delta_y,
+    };
+    camera.look_at(center, Vec3::Y);
 }
 
 fn update_game_tick(mut reader: MessageReader<ServerMessage>, mut time_unit: ResMut<TimeUnit>) {
