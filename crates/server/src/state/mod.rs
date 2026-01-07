@@ -63,6 +63,15 @@ impl PlayerDirection {
             PlayerDirection::West => PlayerDirection::South,
         }
     }
+
+    pub fn direction_value(self) -> i32 {
+        match self {
+            PlayerDirection::North => 3,
+            PlayerDirection::East => 1,
+            PlayerDirection::South => 7,
+            PlayerDirection::West => 5,
+        }
+    }
 }
 
 impl Display for PlayerDirection {

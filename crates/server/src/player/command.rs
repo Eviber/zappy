@@ -337,14 +337,11 @@ impl Command {
                 let player_y = state.players[player_id].y;
                 let front_cell =
                     state.players[player_id].get_front_cell(state.world.width, state.world.height);
-                let kickee_string = match state.players[player_id].facing {
-                    PlayerDirection::North => String::from("deplacement 3\n"),
-                    PlayerDirection::East => String::from("deplacement 4\n"),
-                    PlayerDirection::South => String::from("deplacement 1\n"),
-                    PlayerDirection::West => String::from("deplacement 2\n"),
-                };
+                let base_direction = state.players[player_id].facing.direction_value();
                 for (kickee_id, kickee) in &mut state.players {
                     if kickee.x == player_x && kickee.y == player_y && kickee_id != player_id {
+                        let direction = direction_relative_to(base_direction, kickee.facing);
+                        let kickee_string = format!("deplacement {}\n", direction);
                         kickee.x = front_cell.0;
                         kickee.y = front_cell.1;
                         kickee
@@ -373,55 +370,15 @@ impl Command {
                         continue;
                     }
 
-                    let other_x = state.players[other_player_id].x;
-                    let other_y = state.players[other_player_id].y;
-
-                    // Calculate the shortest distance considering world wrapping in both
-                    // dimensions.
-
-                    fn shortest_wrapped_distance(
-                        pos1: usize,
-                        pos2: usize,
-                        world_size: usize,
-                    ) -> isize {
-                        let direct = pos2 as isize - pos1 as isize;
-                        let wrap_positive = direct + world_size as isize;
-                        let wrap_negative = direct - world_size as isize;
-
-                        if direct.abs() <= wrap_positive.abs()
-                            && direct.abs() <= wrap_negative.abs()
-                        {
-                            direct
-                        } else if wrap_positive.abs() <= wrap_negative.abs() {
-                            wrap_positive
-                        } else {
-                            wrap_negative
-                        }
-                    }
-
-                    let dx = shortest_wrapped_distance(source_x, other_x, world_width);
-                    let dy = shortest_wrapped_distance(source_y, other_y, world_height);
-
-                    // Determine direction based on dx and dy.
-                    let direction = if dx == 0 && dy == 0 {
-                        0 // Same position
-                    } else if dx > 0 && dy == 0 {
-                        1 // Right
-                    } else if dx > 0 && dy > 0 {
-                        2 // Top right
-                    } else if dx == 0 && dy > 0 {
-                        3 // Top
-                    } else if dx < 0 && dy > 0 {
-                        4 // Top left
-                    } else if dx < 0 && dy == 0 {
-                        5 // Left
-                    } else if dx < 0 && dy < 0 {
-                        6 // Bottom left
-                    } else if dx == 0 && dy < 0 {
-                        7 // Bottom
-                    } else {
-                        8 // Bottom right
-                    };
+                    let direction = calculate_relative_direction(
+                        world_width,
+                        world_height,
+                        source_x,
+                        source_y,
+                        state.players[other_player_id].x,
+                        state.players[other_player_id].y,
+                        state.players[other_player_id].facing,
+                    );
 
                     // Send the broadcast message to the other player
                     player
@@ -514,4 +471,78 @@ fn slice_split_once(slice: &[u8], delim: u8) -> Option<(&[u8], &[u8])> {
         .iter()
         .position(|&b| b == delim)
         .map(|pos| (&slice[..pos], &slice[pos + 1..]))
+}
+
+fn calculate_relative_direction(
+    world_width: usize,
+    world_height: usize,
+    source_x: usize,
+    source_y: usize,
+    dest_x: usize,
+    dest_y: usize,
+    facing: PlayerDirection,
+) -> i32 {
+    /// Calculate the shortest distance considering world wrapping in both
+    /// dimensions.
+    fn shortest_wrapped_distance(pos1: usize, pos2: usize, world_size: usize) -> isize {
+        let direct = pos2 as isize - pos1 as isize;
+        let wrap_positive = direct + world_size as isize;
+        let wrap_negative = direct - world_size as isize;
+
+        if direct.abs() <= wrap_positive.abs() && direct.abs() <= wrap_negative.abs() {
+            direct
+        } else if wrap_positive.abs() <= wrap_negative.abs() {
+            wrap_positive
+        } else {
+            wrap_negative
+        }
+    }
+
+    let dx = shortest_wrapped_distance(source_x, dest_x, world_width);
+    let dy = shortest_wrapped_distance(source_y, dest_y, world_height);
+
+    // Determine direction based on dx and dy.
+    let direction = if dx == 0 && dy == 0 {
+        0 // Same position
+    } else if dx > 0 && dy == 0 {
+        1 // Right
+    } else if dx > 0 && dy > 0 {
+        2 // Top right
+    } else if dx == 0 && dy > 0 {
+        3 // Top
+    } else if dx < 0 && dy > 0 {
+        4 // Top left
+    } else if dx < 0 && dy == 0 {
+        5 // Left
+    } else if dx < 0 && dy < 0 {
+        6 // Bottom left
+    } else if dx == 0 && dy < 0 {
+        7 // Bottom
+    } else {
+        8 // Bottom right
+    };
+
+    direction_relative_to(direction, facing)
+}
+
+/// Adjusts the direction relative to the player's facing direction.
+///
+/// Input direction is arranged as follows:
+/// 4 3 2
+/// 5 0 1
+/// 6 7 8
+fn direction_relative_to(mut direction: i32, facing: PlayerDirection) -> i32 {
+    if direction == 0 {
+        return 0;
+    }
+    direction -= 1;
+    direction += match facing {
+        PlayerDirection::East => 0,
+        PlayerDirection::South => 2,
+        PlayerDirection::West => 4,
+        PlayerDirection::North => 6,
+    };
+    direction %= 8;
+    direction += 1;
+    direction
 }
