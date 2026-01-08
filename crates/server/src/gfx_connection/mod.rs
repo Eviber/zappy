@@ -39,7 +39,7 @@ pub async fn handle(mut client: Client) -> Result<(), ClientError> {
         let mut buf = String::new();
         let st = state();
         _ = writeln!(buf, "msz {} {}", st.world.width, st.world.height);
-        _ = writeln!(buf, "sgt {}", st.tick_duration.as_secs_f32());
+        _ = writeln!(buf, "sgt {:0}", 1. / st.tick_duration.as_secs_f32());
 
         for y in 0..st.world.height {
             for x in 0..st.world.width {

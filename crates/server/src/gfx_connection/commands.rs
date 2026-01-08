@@ -260,7 +260,7 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
 
             // TODO: Implement time unit retrieval from the global state once it is
             // implemented.
-            _ = writeln!(buffer, "sgt {}", state().tick_duration.as_secs_f32());
+            _ = writeln!(buffer, "sgt {}", (1. / state().tick_duration.as_secs_f32()));
             fd.async_write_all(buffer.as_ref()).await?;
 
             Ok(())
@@ -272,11 +272,14 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
         //
         // Modifies the current time unit.
         b"sst" => {
-            let Some(new_time_unit) = parse_token::<f32>(tokens.next()) else {
+            let Some(mut new_time_unit) = parse_token::<f32>(tokens.next()) else {
                 _ = writeln!(buffer, "error: invalid time unit");
                 fd.async_write_all(buffer.as_ref()).await?;
                 return Ok(());
             };
+            if new_time_unit <= 10. {
+                new_time_unit = 10.
+            }
             if tokens.next().is_some() {
                 _ = writeln!(buffer, "error: too many arguments");
                 fd.async_write_all(buffer.as_ref()).await?;
@@ -285,8 +288,8 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
 
             {
                 let mut st = state();
-                st.tick_duration = Duration::from_secs_f32(new_time_unit);
-                _ = writeln!(buffer, "sgt {}", st.tick_duration.as_secs_f32());
+                st.tick_duration = Duration::from_secs_f32(1. / new_time_unit);
+                _ = writeln!(buffer, "sgt {:.0}", (1. / st.tick_duration.as_secs_f32()));
             }
 
             fd.async_write_all(buffer.as_ref()).await?;
