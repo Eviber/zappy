@@ -15,12 +15,18 @@ impl Plugin for DrawPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MeshPickingPlugin);
         app.add_systems(Startup, setup);
-        app.add_systems(Update, (axes, grid, cursor, draw_player_info));
+        app.add_systems(
+            Update,
+            (axes, grid, cursor, draw_player_info, time_unit_display),
+        );
     }
 }
 
 #[derive(Component)]
 struct PlayerInfoText;
+
+#[derive(Component)]
+struct TimeUnitText;
 
 /// Setup the info text
 fn setup(mut commands: Commands) {
@@ -31,6 +37,25 @@ fn setup(mut commands: Commands) {
         TextColor(Color::BLACK),
         PlayerInfoText,
     ));
+    // Spawn UI overlay text in top-right
+    commands.spawn((
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(0.0),
+            right: Val::Px(0.0),
+            ..default()
+        },
+        Text::new(""),
+        TextColor(Color::BLACK),
+        TimeUnitText,
+    ));
+}
+
+use super::TimeUnit;
+
+/// Display the time unit in the top-right corner
+fn time_unit_display(time_unit: Res<TimeUnit>, mut text: Single<&mut Text, With<TimeUnitText>>) {
+    text.0 = format!("Time Unit: 1/{} seconds", time_unit.0);
 }
 
 /// Draw 3D axes of the players
