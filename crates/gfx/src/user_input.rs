@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use super::TILE_SIZE;
 
 use super::MapSize;
+use super::TimeUnit;
 
 const ZOOM_SPEED: f32 = 1.0;
 const MOVE_SPEED: f32 = 50.0;
@@ -22,6 +23,7 @@ impl Plugin for UserInputPlugin {
         app.add_systems(
             Update,
             (
+                change_time_unit.run_if(resource_exists::<TimeUnit>),
                 update_camera_focus_on_map_size_change,
                 zoom_camera,
                 rotate_camera,
@@ -29,6 +31,32 @@ impl Plugin for UserInputPlugin {
             ),
         );
     }
+}
+
+use crate::server_message_handlers::ClientMessage;
+
+const TIME_UNIT_STEP: u32 = 10;
+const TIME_UNIT_BIG_STEP: u32 = 100;
+
+/// Change the time unit when the user presses on Up or Down arrow keys
+fn change_time_unit(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut client_message_writer: MessageWriter<ClientMessage>,
+    time_unit: Res<TimeUnit>,
+) {
+    let new_time_unit = if keyboard.just_pressed(KeyCode::ArrowUp) {
+        time_unit.0 + TIME_UNIT_STEP
+    } else if keyboard.just_pressed(KeyCode::ArrowDown) {
+        time_unit.0.saturating_sub(TIME_UNIT_STEP)
+    } else if keyboard.just_pressed(KeyCode::ArrowRight) {
+        time_unit.0 + TIME_UNIT_BIG_STEP
+    } else if keyboard.just_pressed(KeyCode::ArrowLeft) {
+        time_unit.0.saturating_sub(TIME_UNIT_BIG_STEP)
+    } else {
+        return;
+    };
+    let message = ClientMessage(format!("sst {}", new_time_unit));
+    client_message_writer.write(message);
 }
 
 fn update_camera_focus_on_map_size_change(map_size: Res<MapSize>, mut focus: ResMut<CameraFocus>) {
