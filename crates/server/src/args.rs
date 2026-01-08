@@ -115,7 +115,7 @@ impl Default for Args<'_> {
             height: 32,
             teams: vec!["Blue", "Red"],
             initial_slot_count: 1,
-            tick_frequency: 10.0,
+            tick_frequency: 100.0,
         }
     }
 }
