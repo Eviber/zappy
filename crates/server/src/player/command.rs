@@ -419,7 +419,7 @@ async fn broadcast_player_moved(state: &State, player_id: PlayerId) {
     state
         .broadcast_to_graphics_monitors(
             format!(
-                "ppo {} {} {} {}",
+                "ppo {} {} {} {}\n",
                 player_id, player.x, player.y, player.facing,
             )
             .as_bytes(),

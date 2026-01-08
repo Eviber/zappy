@@ -166,7 +166,7 @@ pub async fn handle_one_command(fd: ft::Fd, command: &[u8]) -> Result<(), Client
 
             _ = writeln!(
                 buffer,
-                "ppo {} {} {} {}",
+                "ppo {} {} {} {}\n",
                 player_id, player.x, player.y, player.facing,
             );
             fd.async_write_all(buffer.as_ref()).await?;
