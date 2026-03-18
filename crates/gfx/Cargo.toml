@@ -8,6 +8,6 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
-bevy = "0.18"
+bevy = { version = "0.18", default-features = false, features = ["3d"] }
 bevy_hanabi = { version = "0.18", default-features = false, features = ["3d"] }
 clap = { version = "4.5", features = ["derive"] }
