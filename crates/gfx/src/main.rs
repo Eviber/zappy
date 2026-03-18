@@ -49,7 +49,10 @@ fn main() {
         .run();
 }
 
-fn setup(mut commands: Commands) {
+fn setup(
+    mut commands: Commands,
+    mut scattering_mediums: ResMut<Assets<bevy::pbr::ScatteringMedium>>,
+) {
     let map_size = MapSize {
         width: 0,
         height: 0,
@@ -72,11 +75,12 @@ fn setup(mut commands: Commands) {
         .looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
+    let default_scattering = scattering_mediums.add(bevy::pbr::ScatteringMedium::default());
     // camera
     commands.spawn((
         Camera3d::default(),
         bevy::post_process::bloom::Bloom::NATURAL,
-        bevy::pbr::Atmosphere::default(),
+        bevy::pbr::Atmosphere::earthlike(default_scattering),
         Transform::default(),
     ));
 }
