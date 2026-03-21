@@ -14,6 +14,7 @@ pub struct ServerCommunicationPlugin;
 impl Plugin for ServerCommunicationPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<ServerMessage>();
+        app.add_message::<ClientMessage>();
         app.add_systems(
             PreUpdate,
             (
@@ -22,6 +23,10 @@ impl Plugin for ServerCommunicationPlugin {
                 receive_server_message.run_if(resource_exists::<ServerConnection>),
             )
                 .chain(),
+        );
+        app.add_systems(
+            PostUpdate,
+            send_client_message.run_if(resource_exists::<ServerConnection>),
         );
     }
 }
@@ -199,4 +204,26 @@ fn receive_server_message(
             }
         }
     }
+}
+
+#[derive(Message)]
+pub struct ClientMessage(pub String);
+
+fn send_client_message(
+    mut connection: ResMut<ServerConnection>,
+    mut client_message_reader: MessageReader<ClientMessage>,
+) {
+    for message in client_message_reader.read() {
+        if let Err(e) = send_message_to_server(&mut connection, &message.0) {
+            error!("Failed to send message to server: {}", e);
+        }
+    }
+}
+
+/// Send a message to the server
+fn send_message_to_server(connection: &mut ServerConnection, message: &str) -> io::Result<()> {
+    connection.stream.write_all(message.as_bytes())?;
+    connection.stream.write_all(b"\n")?;
+    connection.stream.flush()?;
+    Ok(())
 }

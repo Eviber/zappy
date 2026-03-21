@@ -2,6 +2,7 @@ use super::*;
 use bevy::prelude::*;
 
 mod server_communication;
+pub use server_communication::ClientMessage;
 pub use server_communication::ServerAddress;
 use server_communication::*;
 
