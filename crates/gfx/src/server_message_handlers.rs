@@ -532,18 +532,18 @@ fn player_get_item(
             warn!("Received get item from unknown player #{}", msg.player_id);
             continue;
         };
-        info!("Player #{} got item {}", msg.player_id, item);
+        info!("Player #{} picked up item {}", msg.player_id, item);
         let tile_x = (transform.translation.x / TILE_SIZE).round() as usize;
         let tile_y = (transform.translation.z / TILE_SIZE).round() as usize;
         let stack = stacks.0.entry((tile_x, tile_y)).or_default();
         let delta = item.delta_vec();
         let offset = item_stack_offset(
             Vec3::new(tile_x as f32 * TILE_SIZE, 0., tile_y as f32 * TILE_SIZE),
-            stack[msg.item_id as usize].len() - 1,
+            stack[msg.item_id as usize].len().saturating_sub(1),
         );
         let item_position = delta + offset;
         let entity = stack[msg.item_id as usize].pop().unwrap_or_else(|| {
-            warn!(
+            info!(
                 "No item {} found on tile ({}, {}) for player #{} to get",
                 item, tile_x, tile_y, msg.player_id
             );
