@@ -79,6 +79,19 @@ impl ObjectClass {
             }
         }
     }
+
+    #[inline]
+    pub fn id(&self) -> usize {
+        match self {
+            Self::Food => 0,
+            Self::Linemate => 1,
+            Self::Deraumere => 2,
+            Self::Sibur => 3,
+            Self::Mendiane => 4,
+            Self::Phiras => 5,
+            Self::Thystame => 6,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
