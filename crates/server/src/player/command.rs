@@ -388,6 +388,10 @@ impl Command {
                     player.conn.async_write_all(&text).await?;
                     player.conn.async_write_all(b"\n").await?;
                 }
+                state.players[player_id]
+                    .conn
+                    .async_write_all(b"ok\n")
+                    .await?;
             }
             Command::Evolve(players) => {
                 for player_id in players {
