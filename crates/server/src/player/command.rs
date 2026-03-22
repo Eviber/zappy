@@ -436,12 +436,12 @@ async fn broadcast_inventory_transfer(state: &State, player_id: PlayerId, obj: O
 
     let broadcasted_bytes = format!(
         "\
-        pgt #{player_id} {obj:?}\n\
-        pin #{player_id} {x} {y} {a1} {b1} {c1} {d1} {e1} {f1} {g1}\n\
+        pgt {player_id} {obj}\n\
+        pin {player_id} {x} {y} {a1} {b1} {c1} {d1} {e1} {f1} {g1}\n\
         bct {x} {y} {a2} {b2} {c2} {d2} {e2} {f2} {g2}\n\
         ",
         player_id = player_id,
-        obj = obj,
+        obj = obj.id(),
         x = player.x,
         y = player.y,
         a1 = player.inventory.get_food(),
