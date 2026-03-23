@@ -6,6 +6,7 @@ pub use server_communication::ClientMessage;
 pub use server_communication::ServerAddress;
 use server_communication::*;
 
+mod beep;
 mod dust_cloud;
 
 /// Plugin to handle messages from the server
@@ -16,6 +17,7 @@ impl Plugin for ServerMessageHandlersPlugin {
         app.insert_resource(TileStacks::default());
         app.add_plugins(ServerCommunicationPlugin);
         app.add_plugins(dust_cloud::DustExplosionPlugin);
+        app.add_plugins(beep::BeepPlugin);
         app.add_systems(
             Update,
             (
@@ -660,6 +662,7 @@ fn player_broadcast(
                 FollowEntity(player_e),
                 DestroyAfter(Timer::from_seconds(2.0, TimerMode::Once)),
             ));
+            commands.trigger(beep::Beep);
         } else {
             warn!(
                 "Unknown player #{} broadcasted message: {}",
